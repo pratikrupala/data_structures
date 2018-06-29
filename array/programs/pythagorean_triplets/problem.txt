@@ -1,0 +1,6 @@
+Given an array of random positive integers, find pythagorean triples from the array.
+
+Example:
+	2, 3, 5
+	5, 12, 13
+	7, 24, 25
