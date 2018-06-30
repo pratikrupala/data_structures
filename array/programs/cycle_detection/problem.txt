@@ -1,0 +1,5 @@
+given an array of integers, the array represents a set which maps to itself.
+
+find the cycle of sequences of elements when traversed starting from first element of the array.
+
+More info: https://en.wikipedia.org/wiki/Cycle_detection
