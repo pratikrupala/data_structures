@@ -1,0 +1,3 @@
+two numbers will be given as input and minimum distance needs to be found among them in the given array.
+
+Consider that these two numbers will be certainly present in the array.
