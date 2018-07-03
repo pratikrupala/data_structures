@@ -1,0 +1,18 @@
+For a given positive array in non-decreasing order, find the ceil and floor values for any given input number x.
+
+The ceil value is the minimum value of an array element among the numbers greater than input number x.
+Similarly, the floor value is the maximum value of an array element among the numbers less than the input number x.
+
+Example,
+
+{2, 4, 6, 7, 11, 16, 45, 56} and input number = 5
+Floor value = 4
+ceil value = 6
+
+{2, 4, 6, 7, 11, 16, 45, 56} and input number = 98
+Floor value = 56
+ceil value = None
+
+{2, 4, 6, 7, 11, 16, 45, 56} and input number = 1
+Floor value = none
+Ceil value = 2
