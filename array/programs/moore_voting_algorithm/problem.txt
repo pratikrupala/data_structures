@@ -1,0 +1,11 @@
+Find majority element of the array.
+
+If some element in an array is occurring for more than n number of times, where n is the size of the array, than that element is called majority element of that array.
+
+Example,
+
+{2, 3, 2, 4, 2, 4, 2, 1, 2, 33, 2, 23, 2, 67}
+In above given array, 2 is occuring exactly half of the size of the array times. So it is not a majority element.
+
+{2, 3, 2, 4, 2, 2, 2, 1, 2, 33, 2, 23, 2, 67}
+But in this array, 2 is occuring n/2 + 1 times. so it is a majority element.
