@@ -1,0 +1,1 @@
+For a given array, check if by only chnaging a single element, the array can be sorted in strictly increasing order or not.
