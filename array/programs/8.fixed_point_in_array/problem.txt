@@ -1,0 +1,9 @@
+For a given sorted array in increasing order, find a fixed point in it.
+
+Fixed point is a point in an array where index and element value at that index is exactly same.
+
+
+Example,
+
+{-12, -4, 0, 3, 5, 8, 11, 34} Fixed point = 3.
+
