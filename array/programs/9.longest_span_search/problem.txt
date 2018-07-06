@@ -1,0 +1,10 @@
+Find the longest common span for given two boolean arrays in which sum of all elements will be same.
+The starting index and ending index of common span for both the arrays should be same.
+
+Example,
+
+Array[1]: 0 1 1 1 0 0 1 0 0 
+
+Array[2]: 0 0 1 0 1 1 0 0 0
+
+Common span: 7 from index 2 to 8.
