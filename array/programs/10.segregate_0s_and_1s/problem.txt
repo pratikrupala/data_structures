@@ -1,0 +1,11 @@
+Given a binary array, segregate 0s and 1s in the same array.
+
+Example,
+
+[1] Array: 1 1 1 1 1 1 1 0 
+
+Result: 0 1 1 1 1 1 1 1
+
+[2]Array: 0 1 1 0 0 0 1 1 
+
+Result: 0 0 0 0 1 1 1 1 
