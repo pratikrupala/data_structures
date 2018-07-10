@@ -1,0 +1,18 @@
+For a given array, it contains 1 to n elements and it ideally should have length n, but it is having length n -1 and one number from 1 to n is missing. Find that missing number.
+
+Example,
+[1] Enter the length of the number: 5
+
+Enter array elements: 
+Index[1]: 3
+Index[2]: 4
+Index[3]: 1
+Index[4]: 6
+Index[5]: 2
+
+Array: 
+3 4 1 6 2 
+
+Missing number: 5
+
+
