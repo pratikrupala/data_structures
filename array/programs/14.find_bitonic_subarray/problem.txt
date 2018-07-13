@@ -1,3 +1,29 @@
 For a given array with length n, find the maximum length bitonic subarray with range [i...j] such that if for some k with i<= k <= j
 
 A[i] <= A[i + 1] ... <= A[k] >= A[k + 1] ... A[j - 1] >= a[j]
+
+Example,
+
+Enter the size of the array: 15
+
+Enter array elements:
+Index[0]: 5
+Index[1]: 2
+Index[2]: 3
+Index[3]: 4
+Index[4]: 8
+Index[5]: 6
+Index[6]: 1
+Index[7]: 2
+Index[8]: 8
+Index[9]: 7
+Index[10]: 6
+Index[11]: 5
+Index[12]: 4
+Index[13]: 3
+Index[14]: 2
+
+
+Array: 5 2 3 4 8 6 1 2 8 7 6 5 4 3 2 
+
+Result: 9
