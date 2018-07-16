@@ -1,0 +1,31 @@
+The target array will be given in input and the number of steps need to be counted to create the target array from the array which has all elements zero having the same size as the target array.
+
+To create the target array, only two operations are allowed:
+[1] Increament any single element in the array.
+[2] Double all the elements in the array. This ioperation is not permitted for single element.
+
+Example:
+##[1]## Enter the size of target array: 2
+
+Enter the array elements: 
+Index[0]: 2
+Index[1]: 7
+
+
+Target array: 2 7 
+
+Result: 6
+
+--------------------------------
+
+##[2]## Enter the size of target array: 2
+
+Enter the array elements: 
+Index[0]: 2
+Index[1]: 5
+
+
+Target array: 2 5 
+
+Result: 5
+
