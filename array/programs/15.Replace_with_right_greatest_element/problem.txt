@@ -1,0 +1,17 @@
+Replace every element in the array with the greatest element on its right.
+
+For the last element, there will be no element on its right. So replace it with -1.
+
+Example,
+Enter the size of the array: 5
+
+Enter array elements: 
+index[0]: 34
+index[1]: 5
+index[2]: 76
+index[3]: 3
+index[4]: 2
+
+Array: 34 5 76 3 2 
+
+Replaced array: 76 76 3 2 -1
