@@ -1,0 +1,18 @@
+For a given unsorted array, find the count of strictly ascending subarrays in it.
+
+Formula used to count multiple possible subarray in a single subarray is given below:
+(n * (n - 1)) / 2
+
+where n is a single streak of increasing numbers in an entire array.
+
+Examples,
+/*
+ * Tries test cases:
+ * {1, 2, 3, 56, 789} - Result = 3
+ * {34, 56, 1, 2, 3} -  Result = 3
+ * {1, 2, 3}    -       Result = 3
+ * {1, 2, 3, 4} -       Result = 6
+ * {1, 2, 3, 5, 6} -    Result = 4
+ * {1, 2, 3, 5, 6, 4, 5, 6} -   Result = 7 
+ */
+
