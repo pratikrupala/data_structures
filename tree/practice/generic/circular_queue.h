@@ -1,7 +1,4 @@
 #include <stdio.h>
-#include <tree.h>
-
-#define MAX_LEN	8
 
 struct tree *cq[MAX_LEN];
 int front = -1;
