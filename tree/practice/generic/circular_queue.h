@@ -5,6 +5,13 @@ int front = -1;
 int rear = -1;
 
 void
+reset_queue(void)
+{
+	front = -1;
+	rear = -1;
+}
+
+void
 addq(struct tree *element)
 {
 	if (((front == -1) && ((rear + 1) == MAX_LEN - 1)) ||
