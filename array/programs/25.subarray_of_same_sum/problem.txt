@@ -1,0 +1,1 @@
+For a given array and a designated sum in input, search a subarray such that sum of elements of subarray matches the designated sum.
