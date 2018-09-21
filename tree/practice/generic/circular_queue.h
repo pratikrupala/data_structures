@@ -4,18 +4,26 @@ struct tree *cq[MAX_LEN];
 int front = -1;
 int rear = -1;
 
-void
-reset_queue(void)
+void reset_queue(void)
 {
 	front = -1;
 	rear = -1;
 }
 
-void
-addq(struct tree *element)
+int q_full(void)
 {
 	if (((front == -1) && ((rear + 1) == MAX_LEN - 1)) ||
-		       (((rear + 1) % MAX_LEN) == front)) {
+			(((rear + 1) % MAX_LEN) == front)) {
+		printf("\nQueue is full.\n");
+		return 1;
+	}
+	return 0;
+}
+
+void addq(struct tree *element)
+{
+	if (((front == -1) && ((rear + 1) == MAX_LEN - 1)) ||
+			(((rear + 1) % MAX_LEN) == front)) {
 		printf("\nQueue is full.\n");
 		return;
 	}
@@ -23,11 +31,18 @@ addq(struct tree *element)
 	cq[rear] = element;
 }
 
-struct tree*
-delq(void)
+int q_empty()
 {
 	if ((rear == -1) || (rear == front)) {
-//		printf("\nQueue is empty.\n");
+		return 1;
+	}
+	return 0;
+}
+
+struct tree* delq(void)
+{
+	if ((rear == -1) || (rear == front)) {
+		//		printf("\nQueue is empty.\n");
 		return NULL;
 	}
 	front++;

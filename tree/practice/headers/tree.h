@@ -1,4 +1,4 @@
-#define MAX_LEN	20
+#define MAX_LEN	30
 
 struct tree {
 	struct tree *left;
