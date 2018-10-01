@@ -1,0 +1,11 @@
+Generate the original tree from its in-order and pre-order sequences
+
+Inorder sequence:
+4	2	5	1	6	3	7	
+Preorder sequence:
+1	2	4	5	3	6	7	
+
+Generated tree:
+1	
+2	3	
+4	5	6	7
