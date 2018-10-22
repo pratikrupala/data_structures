@@ -1,0 +1,11 @@
+Generate a tree from its pre-order and its corresponding NL sequence. But the condition is that nodes in the tree have either 0 child or 2 children.
+
+NL sequence is describing either the node is leaf node(L) or non-leaf node(N) for the same sequence of pre-order.
+
+pre-order: 	1	2	4	5	3	6	7
+NL:		N	N	L	L	N	L	L
+
+Output:
+1	
+2	3	
+4	5	6	7
