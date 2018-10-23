@@ -1,0 +1,26 @@
+Generate an ancestor matrix from the given tree. all tree node values will range from 0 to n-1.
+
+Generate the ancestor matrix such that
+mat[i][j] = 1 (if ji is ancestor of j) else 0
+
+Example:
+[1]
+	0
+1		2
+
+011
+000
+000
+
+[2] 
+		5
+	1		2
+0	      4   3
+
+000000
+100010
+000100
+000000
+000000
+111110
+ 
