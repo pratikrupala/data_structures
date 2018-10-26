@@ -1,0 +1,113 @@
+Generate a tree from its given in-order and post-order sequences.
+
+[1] ./gen 
+
+Enter the length of the tree: 3
+
+Enter the in-order sequence:
+0: 2
+1: 1
+2: 3
+
+Enter the post-order sequence:
+0: 2
+1: 3
+2: 1
+
+Your entered in-order sequence:
+2	1	3	
+Your entered post-order sequence:
+2	3	1	
+Final tree:
+1	
+2	3	
+
+
+[2] ./gen 
+
+Enter the length of the tree: 7
+
+Enter the in-order sequence:
+0: 4
+1: 2
+2: 5
+3: 1
+4: 6
+5: 3
+6: 7
+
+Enter the post-order sequence:
+0: 4
+1: 5
+2: 2
+3: 6
+4: 7
+5: 3
+6: 1
+
+Your entered in-order sequence:
+4	2	5	1	6	3	7	
+Your entered post-order sequence:
+4	5	2	6	7	3	1	
+Final tree:
+1	
+2	3	
+4	5	6	7	
+
+
+[3] ./gen 
+
+Enter the length of the tree: 4
+
+Enter the in-order sequence:
+0: 4
+1: 2
+2: 5
+3: 1
+
+Enter the post-order sequence:
+0: 4
+1: 5
+2: 2
+3: 1
+
+Your entered in-order sequence:
+4	2	5	1	
+Your entered post-order sequence:
+4	5	2	1	
+Final tree:
+1	
+2	
+4	5	
+
+
+[4] ./gen 
+
+Enter the length of the tree: 5
+
+Enter the in-order sequence:
+0: 4
+1: 2
+2: 1
+3: 6
+4: 3
+
+Enter the post-order sequence:
+0: 4
+1: 2
+2: 6
+3: 3
+4: 1
+
+Your entered in-order sequence:
+4	2	1	6	3	
+Your entered post-order sequence:
+4	2	6	3	1	
+Final tree:
+1	
+2	3	
+4	6	
+
+
+  
+
