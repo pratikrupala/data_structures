@@ -9,12 +9,20 @@
 #include <errno.h>
 
 #define BUF_SIZE 1024
+#define SBLOCK_NAME "sblock"
 #define LOCK_NAMES "slocks"
 #define BUF_NAMES "sbufs"
 #define SBLOCK_LK_NAME "sblock_lock"
 
 struct writer_stats {
-	int *sblock_fd;
+	int buf_count;
+	char *buf_name;
+	int buf_name_len;
+	char *buf_lk_name;
+	int buf_lk_name_len;
+	int sblock_fd;
+	int super_block_size;
+	int sblock_lk_fd;
 	char *sblock_lk_name;
 	int *slock_fd;	/* Shared lock fds */
 	char **lk_fname; /* Shmem names for locks */
@@ -22,6 +30,7 @@ struct writer_stats {
         char **buf_names; /* Buffer names */
 };
 
-int create_lock_resources(struct writer_stats *, int, char *);
-int create_shared_buffers(struct writer_stats *, int, char *);
-int create_super_block(struct writer_stats *, int, char *);
+int create_lock_resources(struct writer_stats *);
+int create_shared_buffers(struct writer_stats *);
+int create_super_block(struct writer_stats *, char *);
+int initialize_super_block(struct writer_stats *);

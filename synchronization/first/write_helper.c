@@ -9,6 +9,7 @@ int slock_mutex_create(const char *sfile_name, int *created)
 
 	sfd = shm_open(sfile_name, O_RDWR, 0666);
 	printf("\nSLOCK sfd = %d\n", sfd);
+	perror("SLOCK sfd");
 	if (errno == ENOENT) {
 		printf("\nSlock creating sh buf\n");
 		sfd = shm_open(sfile_name, O_CREAT|O_RDWR, 0666);
@@ -99,20 +100,66 @@ out:
 	return ret;
 }
 
-int create_super_block(struct writer_stats *wstats, int buf_count, char *file_name)
+int create_super_block(struct writer_stats *wstats, char *file_name)
 {
 	int ret = -1;
 	int created = 1;
+	char *sblock_name = SBLOCK_NAME;
+
+	// Super block size itself
+	wstats->super_block_size += sizeof(int);
+
+	// Buffer count size
+	wstats->super_block_size += sizeof(int);
+
+	// Buffer file name size
+	wstats->super_block_size += sizeof(int);
+
+	// Lock file name size
+	wstats->super_block_size += sizeof(int);
+
+	// Buffer file name
+	wstats->super_block_size += strlen(file_name);
+
+	// Lock file name
+	wstats->super_block_size += strlen(wstats->buf_lk_name);
+
+	// Producer bitmap size
+	wstats->super_block_size += (wstats->buf_count/8) + 1;
+
+	// Consumer bitmap size
+	wstats->super_block_size += (wstats->buf_count/8) + 1;
+
+	wstats->sblock_fd = shm_open(sblock_name, O_RDWR, 0666);
+	printf("\nSBLOCK fd = %d\n", wstats->sblock_fd);
+	if (errno == ENOENT) {
+		printf("\nSlock creating sh buf\n");
+		wstats->sblock_fd = shm_open(sblock_name,
+				O_CREAT|O_RDWR, 0666);
+	}
+	if (wstats->sblock_fd == -1) {
+		printf("\nFailed to create shared memory for super block.\n");
+		ret = -1;
+		goto out;
+	}
+
+	if (ftruncate(wstats->sblock_fd, wstats->super_block_size)) {
+		printf("\nSuperblock ftruncate failed.\n");
+		return -1;
+	}
 
 	wstats->sblock_lk_name = malloc((strlen(file_name)) * sizeof(char));
 	if (!wstats->sblock_lk_name) {
 		printf("\nFailed to allocate memory for super block lock name"
 				" string.\n");
-		goto out;
+		goto release_super_block;
 	}
 
-	wstats->sblock_fd = slock_mutex_create(wstats->sblock_lk_name, &created);
-	if (wstats->sblock_fd == -1) {
+	sprintf(wstats->sblock_lk_name, "sblock_%s", file_name);
+	printf("\nDEBUG: sblock_lk_name = %s\n", wstats->sblock_lk_name);
+
+	wstats->sblock_lk_fd = slock_mutex_create(wstats->sblock_lk_name, &created);
+	if (wstats->sblock_lk_fd == -1) {
 		printf("\nFailed to create shared memory buffer for keeping"
 				" super block lock.\n");
 		goto release_sblock_lk_name;
@@ -124,39 +171,79 @@ int create_super_block(struct writer_stats *wstats, int buf_count, char *file_na
 		goto out;
 	}
 
-	
 	ret = 0;
 release_sblock_lk_name:
 	free(wstats->sblock_lk_name);
+release_super_block:
+	//TBD
 out:
 	return ret;
 }
 
-int create_lock_resources(struct writer_stats *wstats, int buf_count, char *file_name)
+int initialize_super_block(struct writer_stats *wstats)
+{
+	int ret = -1;
+	void *sblock_mapped = NULL;
+	int *ptr = NULL;
+	char *buf = NULL;
+
+	printf("\nDEBUG: Done, %d\n", wstats->sblock_fd);
+	sblock_mapped = mmap(NULL, wstats->super_block_size,
+			PROT_WRITE | PROT_READ, MAP_SHARED,
+			wstats->sblock_fd, 0);
+	if (sblock_mapped == MAP_FAILED) {
+		printf("\nFailed to mmap the shared region of super block.\n");
+		goto out;
+	}
+
+	ptr = (int *) sblock_mapped;
+	*ptr = wstats->super_block_size;
+	ptr++;
+	*ptr = wstats->buf_count;
+	ptr++;
+	*ptr = wstats->buf_name_len;
+	ptr++;
+	*ptr = wstats->buf_lk_name_len;
+	ptr++;
+	buf = (char *) ptr;
+	strncpy(buf, wstats->buf_name, strlen(wstats->buf_name));
+	buf += strlen(wstats->buf_name);
+	strncpy(buf, wstats->buf_lk_name, strlen(wstats->buf_lk_name));
+	buf += strlen(wstats->buf_lk_name);
+	memset(buf, 0, (wstats->buf_count/8) + 1);
+	buf += (wstats->buf_count/8) + 1;
+	memset(buf, 0, (wstats->buf_count/8) + 1);
+
+	ret = 0;
+out:
+	return ret;
+}
+
+int create_lock_resources(struct writer_stats *wstats)
 {
 	int i = 0;
-//	void **slock_mapped = NULL;
+	//	void **slock_mapped = NULL;
 	int ret = -1;
 
 	printf ("writer started.\n");
 
-	wstats->slock_fd = malloc(buf_count * sizeof(int));
+	wstats->slock_fd = malloc(wstats->buf_count * sizeof(int));
 	if (!wstats->slock_fd) {
 		printf("\nFailed to allocate memory for fd of"
 				"slock.\n");
 		goto out;
 	}
 
-	wstats->lk_fname = malloc(buf_count * sizeof(char *));
+	wstats->lk_fname = malloc(wstats->buf_count * sizeof(char *));
 	if (!wstats->lk_fname) {
 		printf("\nFailed to allocate memory for lk_fname.\n");
 		goto release_fds;
 	}
 
-	for (i = 0; i < buf_count; i++) {
+	for (i = 0; i < wstats->buf_count; i++) {
 		// TBD: for suffix 0 to 9, below is OK, but for further
 		// increase, size might need to be updated.
-		wstats->lk_fname[i] = malloc(strlen(file_name) + 1);
+		wstats->lk_fname[i] = malloc(strlen(wstats->buf_lk_name) + 1);
 		if (!wstats->lk_fname) {
 			printf("\nFailed to allocate memory for lk_name"
 					" strings\n");
@@ -164,16 +251,17 @@ int create_lock_resources(struct writer_stats *wstats, int buf_count, char *file
 		}
 	}
 
-	for (i = 0; i < buf_count; i++) {
-		sprintf(wstats->lk_fname[i], "lk_%s%d", file_name, i);
+	for (i = 0; i < wstats->buf_count; i++) {
+		sprintf(wstats->lk_fname[i], "lk_%s%d", wstats->buf_lk_name,
+				i);
 	}
 
 	printf("\nFile names generated:\n");
-	for (i = 0; i < buf_count; i++) {
+	for (i = 0; i < wstats->buf_count; i++) {
 		printf("%s\n", wstats->lk_fname[i]);
 	}
 
-	for (i = 0; i < buf_count; i++) {
+	for (i = 0; i < wstats->buf_count; i++) {
 		wstats->slock_fd[i] = slock_mutex_create(wstats->lk_fname[i], NULL);
 		printf("\nWriter receiving sfd = %d\n", wstats->slock_fd[i]);
 		if (wstats->slock_fd[i] == -1) {
@@ -183,63 +271,63 @@ int create_lock_resources(struct writer_stats *wstats, int buf_count, char *file
 		}
 	}
 
-/*
-	slock_mapped = malloc(buf_count * sizeof(void *));
-	if (!slock_mapped) {
-		printf("\nFailed to allocate memory for slock_mapped.\n");
-		goto destroy_mutexes;
-	}
+	/*
+	   slock_mapped = malloc(buf_count * sizeof(void *));
+	   if (!slock_mapped) {
+	   printf("\nFailed to allocate memory for slock_mapped.\n");
+	   goto destroy_mutexes;
+	   }
 
-	for (i = 0; i < buf_count; i++) {
-		slock_mapped[i] = (pthread_mutex_t *) mmap(NULL,
-				sizeof(pthread_mutex_t),
-				PROT_WRITE | PROT_READ, MAP_SHARED,
-				wstats->slock_fd[i], 0);
-		if (slock_mapped[i] == MAP_FAILED) {
-			printf("\nFailed to do mmap for %s\n", wstats->lk_fname[i]);
-			goto release_mapped_pointer;
-		}
-	}
+	   for (i = 0; i < buf_count; i++) {
+	   slock_mapped[i] = (pthread_mutex_t *) mmap(NULL,
+	   sizeof(pthread_mutex_t),
+	   PROT_WRITE | PROT_READ, MAP_SHARED,
+	   wstats->slock_fd[i], 0);
+	   if (slock_mapped[i] == MAP_FAILED) {
+	   printf("\nFailed to do mmap for %s\n", wstats->lk_fname[i]);
+	   goto release_mapped_pointer;
+	   }
+	   }
 
-	printf("\nCalling pthread_mutex_lock\n");
-	if (pthread_mutex_lock(slock_mapped[0])) {
-		printf("\nWriter failed to acquire lock.\n");
-		goto release_mapped_regions;
-	}
-	printf("\nLock acquired.\n");
+	   printf("\nCalling pthread_mutex_lock\n");
+	   if (pthread_mutex_lock(slock_mapped[0])) {
+	   printf("\nWriter failed to acquire lock.\n");
+	   goto release_mapped_regions;
+	   }
+	   printf("\nLock acquired.\n");
 
-	sleep(10);
+	   sleep(10);
 
-	if (pthread_mutex_unlock(slock_mapped[0])) {
-		printf("\nWriter failed to release lock.\n");
-		goto release_mapped_regions;
-	}
+	   if (pthread_mutex_unlock(slock_mapped[0])) {
+	   printf("\nWriter failed to release lock.\n");
+	   goto release_mapped_regions;
+	   }
 
-	for (i = 0; i < buf_count; i++) {
-		if (shm_unlink(lk_fname[i])) {
-			printf("\nFailed to unlink %s\n", lk_fname[i]);
-			goto release_mapped_regions;
-		}
-	}
-*/
+	   for (i = 0; i < buf_count; i++) {
+	   if (shm_unlink(lk_fname[i])) {
+	   printf("\nFailed to unlink %s\n", lk_fname[i]);
+	   goto release_mapped_regions;
+	   }
+	   }
+	   */
 	ret = 0;
 	goto out;
 
-/*
+	/*
 release_mapped_regions:
-	for (i = 0; i < buf_count; i++) {
-		if (munmap(slock_mapped[i], sizeof(pthread_mutex_t))) {
-			printf("\nFailed to unmap the slock mapped"
-				"regions.\n");
-		}
-	}
+for (i = 0; i < buf_count; i++) {
+if (munmap(slock_mapped[i], sizeof(pthread_mutex_t))) {
+printf("\nFailed to unmap the slock mapped"
+"regions.\n");
+}
+}
 release_mapped_pointer:
-	free(slock_mapped);
+free(slock_mapped);
 destroy_mutexes:
-	slock_mutex_delete(wstats->slock_fd, buf_count);
+slock_mutex_delete(wstats->slock_fd, buf_count);
 */
 release_fname_strings:
-	for (i = 0; i < buf_count; i++) {
+	for (i = 0; i < wstats->buf_count; i++) {
 		free(wstats->lk_fname[i]);
 	}
 release_fnames:
@@ -250,39 +338,40 @@ out:
 	return ret;
 }
 
-int create_shared_buffers(struct writer_stats *wstats, int count, char *fname)
+int create_shared_buffers(struct writer_stats *wstats)
 {
 	int i = 0;
-	int buf_name_len = strlen(fname) + 1;
+	int buf_name_len = strlen(wstats->buf_name) + 1;
 	int ret = -1;
 
-	wstats->buf_fds = malloc(count * sizeof(int));
+	wstats->buf_fds = malloc(wstats->buf_count * sizeof(int));
 	if (!wstats->buf_fds) {
 		printf("\nFailed to allocaet memory for buffers fds.\n");
 		goto out;
 	}
 
-	wstats->buf_names = malloc(count * sizeof(char *));
+	wstats->buf_names = malloc(wstats->buf_count * sizeof(char *));
 	if (!wstats->buf_names) {
 		printf("\nFailed to allocate memory for buffer name pointers.\n");
 		goto release_buf_fds;
 	}
 
-	for (i = 0; i < count; i++)
+	for (i = 0; i < wstats->buf_count; i++)
 	{
-		wstats->buf_names[i] = malloc(buf_name_len);
-		if (wstats->buf_names[i]) {
+		wstats->buf_names[i] = (char *) malloc(buf_name_len *
+				sizeof(char));
+		if (!wstats->buf_names[i]) {
 			printf("\nFailed to allocate memory for buffer name"
 					" for buffer number %d.\n", i);
 			goto release_buf_pointers; 
 		}
 	}
 
-	for (i = 0; i < count; i++) {
-		sprintf(wstats->buf_names[i], "%s%d", fname, i);
+	for (i = 0; i < wstats->buf_count; i++) {
+		sprintf(wstats->buf_names[i], "%s%d", wstats->buf_name, i);
 	}
 
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < wstats->buf_count; i++) {
 		wstats->buf_fds[i] = shm_open(wstats->buf_names[i], O_RDWR, 0660);
 		if (errno == ENOENT) {
 			wstats->buf_fds[i] = shm_open(wstats->buf_names[i],
@@ -295,24 +384,25 @@ int create_shared_buffers(struct writer_stats *wstats, int count, char *fname)
 		}
 	}
 
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < wstats->buf_count; i++) {
 		if (ftruncate(wstats->buf_fds[i], BUF_SIZE)) {
 			printf("\nFailed to set size for shared buffer"
 					" number %d\n", i);
 			goto close_fds;
 		}
 	}
+	printf("\nDEBUG -- DONEEE\n");
 	ret = 0;
 
 close_fds:
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < wstats->buf_count; i++) {
 		if (shm_unlink(wstats->buf_names[i])) {
 			printf("\nFailed to destroy shared buffer"
 					" number %d\n", i);
 		}
 	}
 release_bufs:
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < wstats->buf_count; i++) {
 		free(wstats->buf_names[i]);
 	}
 release_buf_pointers:

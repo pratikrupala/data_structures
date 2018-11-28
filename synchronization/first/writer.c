@@ -41,20 +41,32 @@ int main(int argc, char *argv[])
 		printf("\nFailed to allocate memory for stats structure.\n");
 		goto out;
 	}
+	wstats->buf_count = buf_count;
+	wstats->buf_name = buf_names;
+	wstats->buf_name_len = strlen(buf_names);
+	wstats->buf_lk_name = lk_names;
+	wstats->buf_lk_name_len = strlen(lk_names);
 
-	ret = create_super_block(wstats, buf_count, file_name);
+	ret = create_super_block(wstats, file_name);
 	if (ret) {
 		printf("\nFailed to create super block.\n");
 		goto release_wstats;
 	}
 
-	ret = create_lock_resources(wstats, buf_count, lk_names);
+	ret = initialize_super_block(wstats);
+	if (ret) {
+		printf("\nFailed to initialize super block.\n");
+		goto release_super_block;
+	}
+
+	printf("\nCreating lock resources\n");
+	ret = create_lock_resources(wstats);
 	if (ret) {
 		printf("\nFailed to create lock resources.\n");
 		goto release_super_block;
 	}
 
-	ret = create_shared_buffers(wstats, buf_count, buf_names);
+	ret = create_shared_buffers(wstats);
 	if (ret) {
 		printf("\nFailed to allocate shared buffers.\n");
 		goto release_lock_resources;
