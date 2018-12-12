@@ -9,6 +9,7 @@
 #include <errno.h>
 
 #define BUF_SIZE 1024
+#define MAX_SIZE 1024
 #define SBLOCK_NAME "sblock"
 #define LOCK_NAMES "slocks"
 #define BUF_NAMES "sbufs"
@@ -22,6 +23,8 @@ struct writer_stats {
 	int buf_lk_name_len;
 	int sblock_fd;
 	int super_block_size;
+	int producer_bitmap_offset;
+	int consumer_bitmap_offset;
 	int sblock_lk_fd;
 	char *sblock_lk_name;
 	int *slock_fd;	/* Shared lock fds */
@@ -34,3 +37,4 @@ int create_lock_resources(struct writer_stats *);
 int create_shared_buffers(struct writer_stats *);
 int create_super_block(struct writer_stats *, char *);
 int initialize_super_block(struct writer_stats *);
+int fill_shared_buffers(struct writer_stats *, char *);

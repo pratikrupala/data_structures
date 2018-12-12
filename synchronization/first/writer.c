@@ -59,7 +59,6 @@ int main(int argc, char *argv[])
 		goto release_super_block;
 	}
 
-	printf("\nCreating lock resources\n");
 	ret = create_lock_resources(wstats);
 	if (ret) {
 		printf("\nFailed to create lock resources.\n");
@@ -71,10 +70,18 @@ int main(int argc, char *argv[])
 		printf("\nFailed to allocate shared buffers.\n");
 		goto release_lock_resources;
 	}
+
+	ret = fill_shared_buffers(wstats, file_name);
+	if (ret) {
+		printf("\nFailed to fill up shared buffers.\n");
+		goto release_buffer_resources;
+	}
 	ret = 0;
 
+release_buffer_resources:
+	//TBD
 release_lock_resources:
-	// TBD
+	//TBD
 release_super_block:
 	//TBD
 release_wstats:
