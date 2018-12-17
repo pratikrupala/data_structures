@@ -61,6 +61,7 @@ int initialize_super_block(struct reader_writer_stats *rwstats)
 	ptr++;
 	buf = (char *) ptr;
 	strncpy(buf, rwstats->buf_name, strlen(rwstats->buf_name));
+	printf("\n$$$$$$$$$$$$$$$$$$$$$$$$PRATIK: rwstats->buf_name = %s, buf_name_len =%d\n", rwstats->buf_name, rwstats->buf_name_len);
 	buf += strlen(rwstats->buf_name);
 	memset(buf, 0, (rwstats->buf_count/8) + 1);
 	buf += (rwstats->buf_count/8) + 1;

@@ -14,7 +14,6 @@ int main(int argc, char *argv[])
 	int option = 0;
 	int buf_count = 0;
 	char *file_name = NULL;
-	char *buf_names = BUF_NAMES;
 
 	if (argc != 5) {
 		printf("Invalid usage.\n");
@@ -41,15 +40,19 @@ int main(int argc, char *argv[])
 		goto out;
 	}
 	rwstats->buf_count = buf_count;
-	rwstats->buf_name = buf_names;
-	rwstats->buf_name_len = strlen(buf_names);
-//	rwstats->buf_lk_name = lk_names;
-//	rwstats->buf_lk_name_len = strlen(lk_names);
+	rwstats->buf_name_len = strlen(BUF_NAMES) + 1;
+	rwstats->buf_name = malloc(rwstats->buf_name_len * sizeof(char));
+	if (!rwstats->buf_name) {
+		printf("\nFailed to allocate memory for buffer names.\n");
+		goto release_rwstats;
+	}
+	snprintf(rwstats->buf_name, rwstats->buf_name_len, "%s", BUF_NAMES);
+	rwstats->buf_name[rwstats->buf_name_len] = '\0';
 
 	ret = create_super_block(rwstats);
 	if (ret) {
 		printf("\nFailed to create super block.\n");
-		goto release_rwstats;
+		goto release_buf_name;
 	}
 
 	ret = initialize_super_block(rwstats);
@@ -84,6 +87,8 @@ release_buffer_resources:
 release_lock_resources:
 	//TBD
 release_super_block:
+	//TBD
+release_buf_name:
 	//TBD
 release_rwstats:
 	free(rwstats);
