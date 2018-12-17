@@ -6,7 +6,7 @@
 #include <sys/shm.h>
 #include "write_helper.h"
 
-struct writer_stats *wstats = NULL;
+struct reader_writer_stats *rwstats = NULL;
 
 int main(int argc, char *argv[])
 {
@@ -14,7 +14,6 @@ int main(int argc, char *argv[])
 	int option = 0;
 	int buf_count = 0;
 	char *file_name = NULL;
-	char *lk_names = LOCK_NAMES;
 	char *buf_names = BUF_NAMES;
 
 	if (argc != 5) {
@@ -36,42 +35,44 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	wstats = malloc(sizeof(struct writer_stats));
-	if (!wstats) {
+	rwstats = malloc(sizeof(struct reader_writer_stats));
+	if (!rwstats) {
 		printf("\nFailed to allocate memory for stats structure.\n");
 		goto out;
 	}
-	wstats->buf_count = buf_count;
-	wstats->buf_name = buf_names;
-	wstats->buf_name_len = strlen(buf_names);
-	wstats->buf_lk_name = lk_names;
-	wstats->buf_lk_name_len = strlen(lk_names);
+	rwstats->buf_count = buf_count;
+	rwstats->buf_name = buf_names;
+	rwstats->buf_name_len = strlen(buf_names);
+//	rwstats->buf_lk_name = lk_names;
+//	rwstats->buf_lk_name_len = strlen(lk_names);
 
-	ret = create_super_block(wstats, file_name);
+	ret = create_super_block(rwstats);
 	if (ret) {
 		printf("\nFailed to create super block.\n");
-		goto release_wstats;
+		goto release_rwstats;
 	}
 
-	ret = initialize_super_block(wstats);
+	ret = initialize_super_block(rwstats);
 	if (ret) {
 		printf("\nFailed to initialize super block.\n");
 		goto release_super_block;
 	}
 
-	ret = create_lock_resources(wstats);
+	/*
+	ret = create_lock_resources(rwstats);
 	if (ret) {
 		printf("\nFailed to create lock resources.\n");
 		goto release_super_block;
 	}
+	*/
 
-	ret = create_shared_buffers(wstats);
+	ret = create_shared_buffers(rwstats);
 	if (ret) {
 		printf("\nFailed to allocate shared buffers.\n");
 		goto release_lock_resources;
 	}
 
-	ret = fill_shared_buffers(wstats, file_name);
+	ret = fill_shared_buffers(rwstats, file_name);
 	if (ret) {
 		printf("\nFailed to fill up shared buffers.\n");
 		goto release_buffer_resources;
@@ -84,8 +85,8 @@ release_lock_resources:
 	//TBD
 release_super_block:
 	//TBD
-release_wstats:
-	free(wstats);
+release_rwstats:
+	free(rwstats);
 out:
 	return ret;
 }

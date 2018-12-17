@@ -1,70 +1,5 @@
 #include "write_helper.h"
 
-int slock_mutex_create(const char *sfile_name, int *created)
-{
-	int sfd = -1;
-	void *mapped = NULL;
-
-	pthread_mutex_t *slk;
-
-	sfd = shm_open(sfile_name, O_RDWR, 0666);
-	printf("\nSLOCK sfd = %d\n", sfd);
-	perror("SLOCK sfd");
-	if (errno == ENOENT) {
-		printf("\nSlock creating sh buf\n");
-		sfd = shm_open(sfile_name, O_CREAT|O_RDWR, 0666);
-		if (created)
-			*created = 1;
-	} else {
-		if (created)
-			*created = 0;
-		return sfd;
-	}
-	if (sfd == -1) {
-		printf("\nFailed to do shm_open.\n");
-		printf("\nErr no = %d\n", errno);
-		printf("\nErr str = %s\n", strerror(errno));
-		return -1;
-	}
-
-	if (ftruncate(sfd, sizeof(pthread_mutex_t))) {
-		printf("\nFtruncate failed.\n");
-		return -1;
-	}
-
-	mapped = mmap(NULL, sizeof(pthread_mutex_t), PROT_WRITE | PROT_READ,
-			MAP_SHARED, sfd, 0);
-	if (mapped == MAP_FAILED) {
-		printf("\nFailed to mmap the shared region.\n");
-		return -1;
-	}
-
-	slk = (pthread_mutex_t *) mapped;
-
-	pthread_mutexattr_t mattr;
-	if (pthread_mutexattr_init(&mattr)) {
-		printf("\nFailed to initialize mutex attribute.\n");
-		return -1;
-	}
-
-	if (pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED)) {
-		printf("\nFailed to set mutex attribute.\n");
-		return -1;
-	}
-
-	if (pthread_mutex_init(slk, &mattr)) {
-		printf("\nFailed to initiliaze the shared mutex.\n");
-		return -1;
-	}
-
-	if (munmap(mapped, sizeof(pthread_mutex_t))) {
-		printf("\nFailed to unmap the shared mutex region.\n");
-		return -1;
-	}
-
-	return sfd;
-}
-
 int slock_mutex_delete(int *slk_fds, int count)
 {
 	int i = 0;
@@ -101,126 +36,37 @@ out:
 	return ret;
 }
 
-int create_super_block(struct writer_stats *wstats, char *file_name)
-{
-	int ret = -1;
-	int created = 1;
-	char *sblock_name = SBLOCK_NAME;
-
-	// Super block size itself
-	wstats->super_block_size += sizeof(int);
-
-	// Buffer count size
-	wstats->super_block_size += sizeof(int);
-
-	// Buffer file name size
-	wstats->super_block_size += sizeof(int);
-
-	// Lock file name size
-	wstats->super_block_size += sizeof(int);
-
-	// Buffer file name
-	wstats->super_block_size += strlen(file_name);
-
-	// Lock file name
-	wstats->super_block_size += strlen(wstats->buf_lk_name);
-
-	// Producer bitmap offset
-	wstats->producer_bitmap_offset = wstats->super_block_size;
-
-	// Producer bitmap size
-	wstats->super_block_size += (wstats->buf_count/8) + 1;
-
-	// Consumer bitmap offset
-	wstats->consumer_bitmap_offset = wstats->super_block_size;
-
-	// Consumer bitmap size
-	wstats->super_block_size += (wstats->buf_count/8) + 1;
-
-	wstats->sblock_fd = shm_open(sblock_name, O_RDWR, 0666);
-	printf("\nSBLOCK fd = %d\n", wstats->sblock_fd);
-	if (errno == ENOENT) {
-		printf("\nSlock creating sh buf\n");
-		wstats->sblock_fd = shm_open(sblock_name,
-				O_CREAT|O_RDWR, 0666);
-	}
-	if (wstats->sblock_fd == -1) {
-		printf("\nFailed to create shared memory for super block.\n");
-		ret = -1;
-		goto out;
-	}
-
-	if (ftruncate(wstats->sblock_fd, wstats->super_block_size)) {
-		printf("\nSuperblock ftruncate failed.\n");
-		return -1;
-	}
-
-	wstats->sblock_lk_name = malloc((strlen(file_name)) * sizeof(char));
-	if (!wstats->sblock_lk_name) {
-		printf("\nFailed to allocate memory for super block lock name"
-				" string.\n");
-		goto release_super_block;
-	}
-
-	sprintf(wstats->sblock_lk_name, "sblock_%s", file_name);
-	printf("\nDEBUG: sblock_lk_name = %s\n", wstats->sblock_lk_name);
-
-	wstats->sblock_lk_fd = slock_mutex_create(wstats->sblock_lk_name, &created);
-	if (wstats->sblock_lk_fd == -1) {
-		printf("\nFailed to create shared memory buffer for keeping"
-				" super block lock.\n");
-		goto release_sblock_lk_name;
-	}
-
-	if (!created) {
-		printf("\nSuper block lock already exists.\n");
-		ret = 0;
-		goto out;
-	}
-
-	ret = 0;
-release_sblock_lk_name:
-	free(wstats->sblock_lk_name);
-release_super_block:
-	//TBD
-out:
-	return ret;
-}
-
-int initialize_super_block(struct writer_stats *wstats)
+int initialize_super_block(struct reader_writer_stats *rwstats)
 {
 	int ret = -1;
 	void *sblock_mapped = NULL;
 	int *ptr = NULL;
 	char *buf = NULL;
 
-	sblock_mapped = mmap(NULL, wstats->super_block_size,
+	sblock_mapped = mmap(NULL, rwstats->super_block_size,
 			PROT_WRITE | PROT_READ, MAP_SHARED,
-			wstats->sblock_fd, 0);
+			rwstats->sblock_fd, 0);
 	if (sblock_mapped == MAP_FAILED) {
 		printf("\nFailed to mmap the shared region of super block.\n");
 		goto out;
 	}
 
 	ptr = (int *) sblock_mapped;
-	*ptr = wstats->super_block_size;
+	*ptr = rwstats->super_block_size;
+	printf("\n$$$$$$$$$$$$$$$$$$$$$$$$PRATIK: super_block_size = %d\n", rwstats->super_block_size);
 	ptr++;
-	*ptr = wstats->buf_count;
+	*ptr = rwstats->buf_count;
 	ptr++;
-	*ptr = wstats->buf_name_len;
-	ptr++;
-	*ptr = wstats->buf_lk_name_len;
+	*ptr = rwstats->buf_name_len;
 	ptr++;
 	buf = (char *) ptr;
-	strncpy(buf, wstats->buf_name, strlen(wstats->buf_name));
-	buf += strlen(wstats->buf_name);
-	strncpy(buf, wstats->buf_lk_name, strlen(wstats->buf_lk_name));
-	buf += strlen(wstats->buf_lk_name);
-	memset(buf, 0, (wstats->buf_count/8) + 1);
-	buf += (wstats->buf_count/8) + 1;
-	memset(buf, 0, (wstats->buf_count/8) + 1);
+	strncpy(buf, rwstats->buf_name, strlen(rwstats->buf_name));
+	buf += strlen(rwstats->buf_name);
+	memset(buf, 0, (rwstats->buf_count/8) + 1);
+	buf += (rwstats->buf_count/8) + 1;
+	memset(buf, 0, (rwstats->buf_count/8) + 1);
 
-	if (munmap(sblock_mapped, wstats->super_block_size)) {
+	if (munmap(sblock_mapped, rwstats->super_block_size)) {
 		printf("\nFailed to unmap the shared superblock region.\n");
 		goto out;
 	}
@@ -230,173 +76,54 @@ out:
 	return ret;
 }
 
-int create_lock_resources(struct writer_stats *wstats)
+int create_shared_buffers(struct reader_writer_stats *rwstats)
 {
 	int i = 0;
-	//	void **slock_mapped = NULL;
+	int buf_name_len = strlen(rwstats->buf_name) + 1;
 	int ret = -1;
 
-	printf ("writer started.\n");
-
-	wstats->slock_fd = malloc(wstats->buf_count * sizeof(int));
-	if (!wstats->slock_fd) {
-		printf("\nFailed to allocate memory for fd of"
-				"slock.\n");
-		goto out;
-	}
-
-	wstats->lk_fname = malloc(wstats->buf_count * sizeof(char *));
-	if (!wstats->lk_fname) {
-		printf("\nFailed to allocate memory for lk_fname.\n");
-		goto release_fds;
-	}
-
-	for (i = 0; i < wstats->buf_count; i++) {
-		// TBD: for suffix 0 to 9, below is OK, but for further
-		// increase, size might need to be updated.
-		wstats->lk_fname[i] = malloc(strlen(wstats->buf_lk_name) + 1);
-		if (!wstats->lk_fname) {
-			printf("\nFailed to allocate memory for lk_name"
-					" strings\n");
-			goto release_fnames;
-		}
-	}
-
-	for (i = 0; i < wstats->buf_count; i++) {
-		sprintf(wstats->lk_fname[i], "lk_%s%d", wstats->buf_lk_name,
-				i);
-	}
-
-	printf("\nFile names generated:\n");
-	for (i = 0; i < wstats->buf_count; i++) {
-		printf("%s\n", wstats->lk_fname[i]);
-	}
-
-	for (i = 0; i < wstats->buf_count; i++) {
-		wstats->slock_fd[i] = slock_mutex_create(wstats->lk_fname[i], NULL);
-		printf("\nWriter receiving sfd = %d\n", wstats->slock_fd[i]);
-		if (wstats->slock_fd[i] == -1) {
-			printf("\nWriter failed to create mutex for buffer"
-					" number %d.\n", i + 1);
-			goto release_fname_strings;
-		}
-	}
-
-	/*
-	   slock_mapped = malloc(buf_count * sizeof(void *));
-	   if (!slock_mapped) {
-	   printf("\nFailed to allocate memory for slock_mapped.\n");
-	   goto destroy_mutexes;
-	   }
-
-	   for (i = 0; i < buf_count; i++) {
-	   slock_mapped[i] = (pthread_mutex_t *) mmap(NULL,
-	   sizeof(pthread_mutex_t),
-	   PROT_WRITE | PROT_READ, MAP_SHARED,
-	   wstats->slock_fd[i], 0);
-	   if (slock_mapped[i] == MAP_FAILED) {
-	   printf("\nFailed to do mmap for %s\n", wstats->lk_fname[i]);
-	   goto release_mapped_pointer;
-	   }
-	   }
-
-	   printf("\nCalling pthread_mutex_lock\n");
-	   if (pthread_mutex_lock(slock_mapped[0])) {
-	   printf("\nWriter failed to acquire lock.\n");
-	   goto release_mapped_regions;
-	   }
-	   printf("\nLock acquired.\n");
-
-	   sleep(10);
-
-	   if (pthread_mutex_unlock(slock_mapped[0])) {
-	   printf("\nWriter failed to release lock.\n");
-	   goto release_mapped_regions;
-	   }
-
-	   for (i = 0; i < buf_count; i++) {
-	   if (shm_unlink(lk_fname[i])) {
-	   printf("\nFailed to unlink %s\n", lk_fname[i]);
-	   goto release_mapped_regions;
-	   }
-	   }
-	   */
-	ret = 0;
-	goto out;
-
-	/*
-release_mapped_regions:
-for (i = 0; i < buf_count; i++) {
-if (munmap(slock_mapped[i], sizeof(pthread_mutex_t))) {
-printf("\nFailed to unmap the slock mapped"
-"regions.\n");
-}
-}
-release_mapped_pointer:
-free(slock_mapped);
-destroy_mutexes:
-slock_mutex_delete(wstats->slock_fd, buf_count);
-*/
-release_fname_strings:
-for (i = 0; i < wstats->buf_count; i++) {
-	free(wstats->lk_fname[i]);
-}
-release_fnames:
-free(wstats->lk_fname);
-release_fds:
-free(wstats->slock_fd);
-out:
-return ret;
-}
-
-int create_shared_buffers(struct writer_stats *wstats)
-{
-	int i = 0;
-	int buf_name_len = strlen(wstats->buf_name) + 1;
-	int ret = -1;
-
-	wstats->buf_fds = malloc(wstats->buf_count * sizeof(int));
-	if (!wstats->buf_fds) {
+	rwstats->buf_fds = malloc(rwstats->buf_count * sizeof(int));
+	if (!rwstats->buf_fds) {
 		printf("\nFailed to allocaet memory for buffers fds.\n");
 		goto out;
 	}
 
-	wstats->buf_names = malloc(wstats->buf_count * sizeof(char *));
-	if (!wstats->buf_names) {
+	rwstats->buf_names = malloc(rwstats->buf_count * sizeof(char *));
+	if (!rwstats->buf_names) {
 		printf("\nFailed to allocate memory for buffer name pointers.\n");
 		goto release_buf_fds;
 	}
 
-	for (i = 0; i < wstats->buf_count; i++)
+	for (i = 0; i < rwstats->buf_count; i++)
 	{
-		wstats->buf_names[i] = (char *) malloc(buf_name_len *
+		rwstats->buf_names[i] = (char *) malloc(buf_name_len *
 				sizeof(char));
-		if (!wstats->buf_names[i]) {
+		if (!rwstats->buf_names[i]) {
 			printf("\nFailed to allocate memory for buffer name"
 					" for buffer number %d.\n", i);
 			goto release_buf_pointers; 
 		}
 	}
 
-	for (i = 0; i < wstats->buf_count; i++) {
-		sprintf(wstats->buf_names[i], "%s%d", wstats->buf_name, i);
+	for (i = 0; i < rwstats->buf_count; i++) {
+		sprintf(rwstats->buf_names[i], "%s%d", rwstats->buf_name, i);
 	}
 
-	for (i = 0; i < wstats->buf_count; i++) {
-		wstats->buf_fds[i] = shm_open(wstats->buf_names[i], O_RDWR, 0660);
+	for (i = 0; i < rwstats->buf_count; i++) {
+		rwstats->buf_fds[i] = shm_open(rwstats->buf_names[i], O_RDWR, 0660);
 		if (errno == ENOENT) {
-			wstats->buf_fds[i] = shm_open(wstats->buf_names[i],
+			rwstats->buf_fds[i] = shm_open(rwstats->buf_names[i],
 					O_CREAT|O_RDWR, 0660);
 		}
-		if (wstats->buf_fds[i] == -1) {
+		if (rwstats->buf_fds[i] == -1) {
 			printf("\nfailed to create a shared buffer for buffer"
 					" number %d\n", i);
 			goto release_bufs;
 		}
 	}
 
-	for (i = 0; i < wstats->buf_count; i++) {
-		if (ftruncate(wstats->buf_fds[i], BUF_SIZE)) {
+	for (i = 0; i < rwstats->buf_count; i++) {
+		if (ftruncate(rwstats->buf_fds[i], BUF_SIZE)) {
 			printf("\nFailed to set size for shared buffer"
 					" number %d\n", i);
 			goto close_fds;
@@ -406,20 +133,20 @@ int create_shared_buffers(struct writer_stats *wstats)
 	goto out;
 
 close_fds:
-	for (i = 0; i < wstats->buf_count; i++) {
-		if (shm_unlink(wstats->buf_names[i])) {
+	for (i = 0; i < rwstats->buf_count; i++) {
+		if (shm_unlink(rwstats->buf_names[i])) {
 			printf("\nFailed to destroy shared buffer"
 					" number %d\n", i);
 		}
 	}
 release_bufs:
-	for (i = 0; i < wstats->buf_count; i++) {
-		free(wstats->buf_names[i]);
+	for (i = 0; i < rwstats->buf_count; i++) {
+		free(rwstats->buf_names[i]);
 	}
 release_buf_pointers:
-	free(wstats->buf_names);
+	free(rwstats->buf_names);
 release_buf_fds:
-	free(wstats->buf_fds);
+	free(rwstats->buf_fds);
 out:
 	return ret;
 }
@@ -440,6 +167,7 @@ void bitmap_set_bit(char *ptr, int bit)
 {
 	int *n = NULL;
 	int loc = bit / 8;
+	bit = bit % 8;
 
 	ptr = ptr + loc;
 	n = (int *) ptr;
@@ -451,6 +179,7 @@ void bitmap_clear_bit(char *ptr, int bit)
 {
 	int *n = NULL;
 	int loc = bit / 8;
+	bit = bit % 8;
 
 	ptr = ptr + loc;
 	n = (int *) ptr;
@@ -462,6 +191,7 @@ int bitmap_get_bit(char *ptr, int bit)
 {
 	int *n = NULL;
 	int loc = bit / 8;
+	bit = bit % 8;
 
 	ptr = ptr + loc;
 	n = (int *) ptr;
@@ -469,7 +199,7 @@ int bitmap_get_bit(char *ptr, int bit)
 	return ((*n >> bit) & 1);
 }
 
-int confirm_buf_num(struct writer_stats *wstats, int *current_buf_size,
+int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 		int len_to_write, void *sblock_lk, char *producer_bitmap_ptr,
 		char *consumer_bitmap_ptr, int *current_buf_num,
 		void **sbuf_mapped, void **current_buf_ptr)
@@ -488,7 +218,7 @@ int confirm_buf_num(struct writer_stats *wstats, int *current_buf_size,
 
 fetch_next_buf:
 		// Need to move to next buffer
-		*current_buf_num = (*current_buf_num + 1) % wstats->buf_count;
+		*current_buf_num = (*current_buf_num + 1) % rwstats->buf_count;
 		if ((bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) ||
 			(bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num))) {
 			goto fetch_next_buf;
@@ -511,25 +241,25 @@ out:
 	return ret;
 }
 
-void **open_all_shared_bufs(struct writer_stats *wstats)
+void **open_all_shared_bufs(struct reader_writer_stats *rwstats)
 {
 	int i = 0;
 	void **sbuf_mapped = NULL;
 
-	sbuf_mapped = malloc(wstats->buf_count * sizeof(void *));
+	sbuf_mapped = malloc(rwstats->buf_count * sizeof(void *));
 	if (!sbuf_mapped) {
 		printf("\nFailed to allocate memory for sbuf_mapped.\n");
 		goto out;
 	}
 
-	for (i = 0; i < wstats->buf_count; i++) {
+	for (i = 0; i < rwstats->buf_count; i++) {
 		sbuf_mapped[i] = mmap(NULL, BUF_SIZE,
 				PROT_WRITE | PROT_READ, MAP_SHARED,
-				wstats->buf_fds[i], 0);
+				rwstats->buf_fds[i], 0);
 		if (sbuf_mapped[i] == MAP_FAILED) {
 			printf("\nFailed to mmap the shared buffer number %d "
 					"for filling up block, buffer "
-					"fd = %d.\n", i, wstats->buf_fds[i]);
+					"fd = %d.\n", i, rwstats->buf_fds[i]);
 			perror("Buffer mmap failed: ");
 			goto out;
 		}
@@ -539,7 +269,7 @@ out:
 	return sbuf_mapped;
 }
 
-int fill_shared_buffers(struct writer_stats *wstats, char *file_name)
+int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 {
 	int j = 0;
 	int ret = -1;
@@ -573,9 +303,9 @@ int fill_shared_buffers(struct writer_stats *wstats, char *file_name)
 		goto out;
 	}
 
-	sblock_mapped = mmap(NULL, wstats->super_block_size,
+	sblock_mapped = mmap(NULL, rwstats->super_block_size,
 			PROT_WRITE | PROT_READ, MAP_SHARED,
-			wstats->sblock_fd, 0);
+			rwstats->sblock_fd, 0);
 	if (sblock_mapped == MAP_FAILED) {
 		printf("\nFailed to mmap the shared region of super block.\n");
 		goto out;
@@ -583,18 +313,18 @@ int fill_shared_buffers(struct writer_stats *wstats, char *file_name)
 
 	sblock_lk = (pthread_mutex_t *) mmap(NULL, sizeof(pthread_mutex_t),
 			PROT_WRITE | PROT_READ, MAP_SHARED,
-			wstats->sblock_lk_fd, 0);
+			rwstats->sblock_lk_fd, 0);
 	if (sblock_lk == MAP_FAILED) {
 		printf("\nFailed to mmap the superblock lock.\n");
 		goto out;
 	}
 
 	producer_bitmap_ptr = (char *) sblock_mapped +
-		wstats->producer_bitmap_offset;
+		rwstats->producer_bitmap_offset;
 	consumer_bitmap_ptr = (char *) sblock_mapped +
-		wstats->consumer_bitmap_offset;
+		rwstats->consumer_bitmap_offset;
 
-	sbuf_mapped = open_all_shared_bufs(wstats);
+	sbuf_mapped = open_all_shared_bufs(rwstats);
 	if (!sbuf_mapped) {
 		printf("\nFailed to open all bufs for writing.\n");
 		goto out;
@@ -632,7 +362,7 @@ int fill_shared_buffers(struct writer_stats *wstats, char *file_name)
 					size_info_len = calculate_digits(strlen(start)) + 1;
 					data_line_len = strlen(start) + 1;
 					len_size = size_info_len + data_line_len;
-					confirm_buf_num(wstats, &current_buf_available_size,
+					confirm_buf_num(rwstats, &current_buf_available_size,
 							len_size, sblock_lk, producer_bitmap_ptr,
 							consumer_bitmap_ptr, &current_buf_num,
 							sbuf_mapped, &current_buf_ptr);
@@ -667,7 +397,7 @@ int fill_shared_buffers(struct writer_stats *wstats, char *file_name)
 					*(cat_buf + strlen(prev_buf)) = '\0';
 					cat_buf = strncat(cat_buf, start, concatenate_len);
 					len_size = size_info_len + concatenate_len;
-					confirm_buf_num(wstats, &current_buf_available_size,
+					confirm_buf_num(rwstats, &current_buf_available_size,
 							len_size, sblock_lk, producer_bitmap_ptr,
 							consumer_bitmap_ptr, &current_buf_num,
 							sbuf_mapped, &current_buf_ptr);
