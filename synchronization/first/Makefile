@@ -24,4 +24,4 @@ $(TARGET2): $(OBJS2) $(COMMONOBJS2)
 	$(CC) $(CFLAGS) -o $@ $(OBJS2) $(COMMONOBJS2) $(LIBS)
 
 clean:
-	$(RM) $(TARGET1) $(TARGET2) $(OBJS1) $(OBJS2) $(COMMONOBJS1) $(COMMONOBJS2) /dev/shm/lk_sl* /dev/shm/sbuf* /dev/shm/sbloc*
+	$(RM) $(TARGET1) $(TARGET2) $(OBJS1) $(OBJS2) $(COMMONOBJS1) $(COMMONOBJS2) /dev/shm/sbuf* /dev/shm/sbloc*

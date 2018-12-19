@@ -8,10 +8,7 @@ int slock_mutex_create(const char *sfile_name, int *created)
 	pthread_mutex_t *slk;
 
 	sfd = shm_open(sfile_name, O_RDWR, 0666);
-	printf("\nSLOCK sfd = %d\n", sfd);
-	perror("SLOCK sfd");
 	if (errno == ENOENT) {
-		printf("\nSlock creating sh buf\n");
 		sfd = shm_open(sfile_name, O_CREAT|O_RDWR, 0666);
 		if (created)
 			*created = 1;
@@ -96,9 +93,7 @@ int create_super_block(struct reader_writer_stats *rwstats)
 	rwstats->super_block_size += (rwstats->buf_count/8) + 1;
 
 	rwstats->sblock_fd = shm_open(sblock_name, O_RDWR, 0666);
-	printf("\nSBLOCK fd = %d\n", rwstats->sblock_fd);
 	if (errno == ENOENT) {
-		printf("\nSlock creating sh buf\n");
 		rwstats->sblock_fd = shm_open(sblock_name,
 				O_CREAT|O_RDWR, 0666);
 	}
@@ -121,7 +116,6 @@ int create_super_block(struct reader_writer_stats *rwstats)
 	}
 
 	snprintf(rwstats->sblock_lk_name, strlen(SBLOCK_LK_NAME), "%s", SBLOCK_LK_NAME);
-	printf("\nDEBUG: sblock_lk_name = %s\n", rwstats->sblock_lk_name);
 
 	rwstats->sblock_lk_fd = slock_mutex_create(rwstats->sblock_lk_name, &created);
 	if (rwstats->sblock_lk_fd == -1) {

@@ -53,7 +53,6 @@ int initialize_super_block(struct reader_writer_stats *rwstats)
 
 	ptr = (int *) sblock_mapped;
 	*ptr = rwstats->super_block_size;
-	printf("\n$$$$$$$$$$$$$$$$$$$$$$$$PRATIK: super_block_size = %d\n", rwstats->super_block_size);
 	ptr++;
 	*ptr = rwstats->buf_count;
 	ptr++;
@@ -61,7 +60,6 @@ int initialize_super_block(struct reader_writer_stats *rwstats)
 	ptr++;
 	buf = (char *) ptr;
 	strncpy(buf, rwstats->buf_name, strlen(rwstats->buf_name));
-	printf("\n$$$$$$$$$$$$$$$$$$$$$$$$PRATIK: rwstats->buf_name = %s, buf_name_len =%d\n", rwstats->buf_name, rwstats->buf_name_len);
 	buf += strlen(rwstats->buf_name);
 	memset(buf, 0, (rwstats->buf_count/8) + 1);
 	buf += (rwstats->buf_count/8) + 1;
@@ -208,6 +206,19 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 	int ret = -1;
 	int original_buf_num = *current_buf_num;
 
+	if ((*current_buf_size - 1) >= len_to_write) {
+		if (bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
+			printf("\nAlready writing in the wrong buffer. "
+					"Abort.\n");
+			goto out;
+		}
+		if (!bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) {
+			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
+		}
+		ret = 0;
+		goto out;
+	}
+
 	while ((*current_buf_size - 1) < len_to_write) {
 		if (pthread_mutex_lock(sblock_lk)) {
 			printf("\nFailed to acquire superblock lock\n");
@@ -222,11 +233,45 @@ fetch_next_buf:
 		*current_buf_num = (*current_buf_num + 1) % rwstats->buf_count;
 		if ((bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) ||
 			(bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num))) {
+			exit(1);
+			/* 
+			 * Either consumer has not consumed this buffer yet or
+			 * other producer thread is writing to this buffer right
+			 * now or somthing has gone wrong. so try some other buffer
+			 * after sleeping for some time. Don't hold lock while
+			 * going for sleep.
+			 */	
+			if (pthread_mutex_unlock(sblock_lk)) {
+				printf("\nFailed to release superblock lock\n");
+				goto out;
+			}
+			sleep(3);
+			if (pthread_mutex_lock(sblock_lk)) {
+				printf("\nFailed to acquire superblock lock\n");
+				goto out;
+			}
 			goto fetch_next_buf;
 		} else if (original_buf_num == *current_buf_num) {
-			sleep(10);
+			/*
+			 * Reached at the same buffer from where we started, which
+			 * means either consumer has not started consuming the buffers
+			 * or somehow consumer is blocked. So before trying the same
+			 * again, lets consumer give some time to consume or unblock
+			 * itself and then resume again. Don't hold lock while
+			 * going for sleep.
+			 */
+			if (pthread_mutex_unlock(sblock_lk)) {
+				printf("\nFailed to release superblock lock\n");
+				goto out;
+			}
+			sleep(3);
+			if (pthread_mutex_lock(sblock_lk)) {
+				printf("\nFailed to acquire superblock lock\n");
+				goto out;
+			}
 			goto fetch_next_buf;
 		} else {
+			// We can use newly calculated buffer number
 			*current_buf_size = BUF_SIZE;
 			*current_buf_ptr = sbuf_mapped[*current_buf_num];
 			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
