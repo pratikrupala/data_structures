@@ -161,8 +161,8 @@ void level_order_bst(struct bst *root)
 				}
 				child_count++;
 			}
-			printf("\n\n");
 		}
+		printf("\n\n");
 	}
 }
 
