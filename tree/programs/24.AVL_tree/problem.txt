@@ -1,0 +1,62 @@
+Implement AVL tree
+
+Insert methods:
+##### RL method
+$ ./avl 
+
+Enter the number of nodes to be entered in AVL tree: 4
+
+Enter the numbers to be added:
+[0]: 1
+[1]: 2
+[2]: 4
+[3]: 3
+
+2(-1/M/0)	
+1(0/L/2)	4(1/R/2)	
+3(0/L/4)
+
+##### RR method
+
+$ ./avl 
+
+Enter the number of nodes to be entered in AVL tree: 5
+
+Enter the numbers to be added:
+[0]: 1
+[1]: 2
+[2]: 3
+[3]: 4
+[4]: 5
+
+2(0/M/0)	
+1(0/L/2)	4(0/R/2)	
+3(0/L/4)	5(0/R/4)
+
+##### LL method
+
+$ ./avl 
+
+Enter the number of nodes to be entered in AVL tree: 3
+
+Enter the numbers to be added:
+[0]: 3
+[1]: 2 
+[2]: 1
+
+2(0/M/0)	
+1(0/L/2)	3(0/R/2)
+
+##### LR method	
+
+$ ./avl 
+
+Enter the number of nodes to be entered in AVL tree: 3
+
+Enter the numbers to be added:
+[0]: 4
+[1]: 2
+[2]: 3
+
+3(0/M/0)	
+2(0/L/3)	4(0/R/3)
