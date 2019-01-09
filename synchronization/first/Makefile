@@ -1,6 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -g
-LIBS = -lrt -pthread
+LIBS1 = -lrt -pthread
+LIBS2 = -lrt -pthread -lm
 TARGET = $(TARGET1) $(TARGET2)
 TARGET1 = writer
 TARGET2 = reader
@@ -13,15 +14,15 @@ OBJS1 = $(SRCS1:.c=.o)
 OBJS2 = $(SRCS2:.c=.o)
 COMMONOBJS1 = $(COMMON1:.c=.o)
 COMMONOBJS2 = $(COMMON2:.c=.o)
-RM = rm
+RM = rm -f
 
 all: $(TARGET1) $(TARGET2)
 
 $(TARGET1): $(OBJS1) $(COMMONOBJS1)
-	$(CC) $(CFLAGS) -o $@ $(OBJS1) $(COMMONOBJS1) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS1) $(COMMONOBJS1) $(LIBS1)
 
 $(TARGET2): $(OBJS2) $(COMMONOBJS2)
-	$(CC) $(CFLAGS) -o $@ $(OBJS2) $(COMMONOBJS2) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS2) $(COMMONOBJS2) $(LIBS2)
 
 clean:
-	$(RM) $(TARGET1) $(TARGET2) $(OBJS1) $(OBJS2) $(COMMONOBJS1) $(COMMONOBJS2) /dev/shm/sbuf* /dev/shm/sbloc*
+	$(RM) $(TARGET1) $(TARGET2) $(OBJS1) $(OBJS2) $(COMMONOBJS1) $(COMMONOBJS2) /dev/shm/sbuf* /dev/shm/sbloc* output.txt

@@ -1,3 +1,6 @@
+#ifndef _COMMON_H
+#define _COMMON_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,4 +43,11 @@ struct super_block {
 	int *consumer_map;
 };
 
+void bitmap_set_bit(char *, int);
+void bitmap_clear_bit(char *, int);
+int bitmap_get_bit(char *, int);
 int create_super_block(struct reader_writer_stats *);
+int create_shared_buffers_mappings(struct reader_writer_stats *);
+void **open_all_shared_bufs(struct reader_writer_stats *);
+
+#endif

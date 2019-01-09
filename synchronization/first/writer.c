@@ -69,10 +69,10 @@ int main(int argc, char *argv[])
 	}
 	*/
 
-	ret = create_shared_buffers(rwstats);
+	ret = create_shared_buffers_mappings(rwstats);
 	if (ret) {
 		printf("\nFailed to allocate shared buffers.\n");
-		goto release_lock_resources;
+		goto release_super_block;
 	}
 
 	ret = fill_shared_buffers(rwstats, file_name);
@@ -83,8 +83,6 @@ int main(int argc, char *argv[])
 	ret = 0;
 
 release_buffer_resources:
-	//TBD
-release_lock_resources:
 	//TBD
 release_super_block:
 	//TBD

@@ -51,37 +51,27 @@ int main(int argc, char *argv[])
 		goto release_rwstats;
 	}
 
-	ret = read_super_block(rwstats);
+	ret = map_super_block(rwstats);
 	if (ret) {
 		printf("\nFailed to initialize super block.\n");
 		goto release_super_block;
 	}
 
-	/*
-	ret = create_lock_resources(wstats);
+	ret = create_shared_buffers_mappings(rwstats);
 	if (ret) {
-		printf("\nFailed to create lock resources.\n");
+		printf("\nFailed to map shared buffers.\n");
 		goto release_super_block;
 	}
 
-	ret = create_shared_buffers(rwstats);
+	ret = consume_shared_buffers(rwstats, sub_string);
 	if (ret) {
-		printf("\nFailed to allocate shared buffers.\n");
-		goto release_lock_resources;
-	}
-
-	ret = fill_shared_buffers(rwstats, file_name);
-	if (ret) {
-		printf("\nFailed to fill up shared buffers.\n");
+		printf("\nFailed to consume shared buffers.\n");
 		goto release_buffer_resources;
 	}
-	*/
 	ret = 0;
 	goto out;
 
-//release_buffer_resources:
-	//TBD
-//release_lock_resources:
+release_buffer_resources:
 	//TBD
 release_super_block:
 	//TBD
