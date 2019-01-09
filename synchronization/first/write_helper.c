@@ -58,6 +58,7 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 {
 	int ret = -1;
 	int original_buf_num = *current_buf_num;
+	char *ptr = NULL;
 
 	if ((*current_buf_size - 1) >= len_to_write) {
 		if (bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
@@ -87,6 +88,7 @@ fetch_next_buf:
 		if ((bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) ||
 			(bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num))) {
 			exit(1);
+//			sleep(2);
 			/* 
 			 * Either consumer has not consumed this buffer yet or
 			 * other producer thread is writing to this buffer right
@@ -127,6 +129,9 @@ fetch_next_buf:
 			// We can use newly calculated buffer number
 			*current_buf_size = BUF_SIZE;
 			*current_buf_ptr = sbuf_mapped[*current_buf_num];
+			ptr = (char *) *current_buf_ptr;
+			ptr += BUF_SIZE;
+			*ptr = '\0';
 			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
 		}
 		if (pthread_mutex_unlock(sblock_lk)) {
@@ -167,6 +172,7 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 	int data_line_len = 0;
 	int size_info_len = 0;
 	void *current_buf_ptr = NULL;
+	char *ptr = NULL;
 
 	fd = open(file_name, O_RDONLY);
 	if (fd == -1) {
@@ -202,6 +208,9 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 	}
 
 	current_buf_ptr = sbuf_mapped[0];
+	ptr = (char *) current_buf_ptr;
+	ptr += BUF_SIZE;
+	*ptr = '\0';
 
 	while (1) {
 		static int i = 0;
@@ -242,12 +251,18 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 					printf("PRATIK: Size info = %s, len = %d", size_info, size_info_len);
 					strncpy(current_buf_ptr, size_info, size_info_len);
 					current_buf_available_size -= size_info_len;
-					current_buf_ptr += size_info_len;
+					current_buf_ptr += calculate_digits(strlen(start));
+					ptr = (char *) current_buf_ptr;
+					*ptr = '\n';
+					current_buf_ptr++;
 					data_line = malloc(data_line_len * sizeof(char));
 					snprintf(data_line, data_line_len, "%s\n", start);
 					strncpy(current_buf_ptr, data_line, data_line_len);
 					current_buf_available_size -= data_line_len;
-					current_buf_ptr += data_line_len;
+					current_buf_ptr += data_line_len - 1;
+					ptr = (char *) current_buf_ptr;
+					*ptr = '\n';
+					current_buf_ptr++;
 					printf("\nWriting to buf number = %d\n", current_buf_num);
 					printf("\n[%d]: %s.\n", i++, start);
 					free(size_info);
@@ -273,17 +288,26 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 							len_size, sblock_lk, producer_bitmap_ptr,
 							consumer_bitmap_ptr, &current_buf_num,
 							sbuf_mapped, &current_buf_ptr);
+					ptr = (char *) current_buf_ptr;
 					size_info = malloc(size_info_len * sizeof(char));
 					snprintf(size_info, size_info_len, "%lu\n", strlen(start) +
 							strlen(prev_buf));
 					strncpy(current_buf_ptr, size_info, size_info_len);
 					current_buf_available_size -= size_info_len;
+					current_buf_ptr += calculate_digits(strlen(start) +
+							strlen(prev_buf));
+					ptr = (char *) current_buf_ptr;
+					*ptr = '\n';
+					current_buf_ptr++;
 					current_buf_ptr += size_info_len;
 					data_line = malloc(data_line_len * sizeof(char));
 					snprintf(data_line, data_line_len, "%s\n", cat_buf);
 					strncpy(current_buf_ptr, data_line, data_line_len);
 					current_buf_available_size -= data_line_len;
-					current_buf_ptr += data_line_len;
+					current_buf_ptr += data_line_len - 1;
+					ptr = (char *) current_buf_ptr;
+					*ptr = '\n';
+					current_buf_ptr++;
 					printf("\nWriting to buf number = %d\n", current_buf_num);
 					printf("\n[%d]: %s.\n", i++, cat_buf);
 					if (prev_buf)

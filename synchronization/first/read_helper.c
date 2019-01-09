@@ -73,7 +73,7 @@ int consume_shared_buffers(struct reader_writer_stats *rwstats,
 		j = 0;
 		size = 0;
 		ptr = (char *) current_buf_ptr;
-		while (*ptr != '\n') {
+		while (*ptr != '\0') {
 			printf("%c", *ptr);
 			j++;
 			ptr++;
