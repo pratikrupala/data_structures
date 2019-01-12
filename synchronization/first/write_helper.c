@@ -61,13 +61,22 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 	char *ptr = NULL;
 
 	if ((*current_buf_size - 1) >= len_to_write) {
+		if (pthread_mutex_lock(sblock_lk)) {
+			printf("\nFailed to acquire superblock lock\n");
+			goto out;
+		}
 		if (bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
 			printf("\nAlready writing in the wrong buffer. "
 					"Abort.\n");
+			pthread_mutex_unlock(sblock_lk);
 			goto out;
 		}
 		if (!bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) {
 			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
+		}
+		if (pthread_mutex_unlock(sblock_lk)) {
+			printf("\nFailed to release superblock lock\n");
+			goto out;
 		}
 		ret = 0;
 		goto out;
@@ -78,16 +87,35 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 			printf("\nFailed to acquire superblock lock\n");
 			goto out;
 		}
+		/*
+		ptr += BUF_SIZE - *current_buf_size - 2;
+		*ptr = '\0';
+		*/
 		// Set 1 in consumer bitmap for the current buffer
 		bitmap_set_bit(consumer_bitmap_ptr, *current_buf_num);
 		bitmap_clear_bit(producer_bitmap_ptr, *current_buf_num);
+		ptr = (char *) sbuf_mapped[*current_buf_num];
+		printf("\n\n\nCHALU\n\n\n");
+		while (*ptr != '\0') {
+			printf("%c", *ptr);
+			ptr++;
+		}
+		/*
+		if (*current_buf_num == 2) {
+			printf("\n\n\n\nOH MY GOODNESS!!\n\n\n\n");
+			ptr += 3;
+			while (*ptr != '\0') {
+				printf("%c", *ptr);
+				ptr++;
+			}
+		}
+		*/
 
 fetch_next_buf:
 		// Need to move to next buffer
 		*current_buf_num = (*current_buf_num + 1) % rwstats->buf_count;
 		if ((bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) ||
 			(bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num))) {
-			exit(1);
 //			sleep(2);
 			/* 
 			 * Either consumer has not consumed this buffer yet or
@@ -100,6 +128,7 @@ fetch_next_buf:
 				printf("\nFailed to release superblock lock\n");
 				goto out;
 			}
+			exit(1);
 			sleep(3);
 			if (pthread_mutex_lock(sblock_lk)) {
 				printf("\nFailed to acquire superblock lock\n");
@@ -129,9 +158,7 @@ fetch_next_buf:
 			// We can use newly calculated buffer number
 			*current_buf_size = BUF_SIZE;
 			*current_buf_ptr = sbuf_mapped[*current_buf_num];
-			ptr = (char *) *current_buf_ptr;
-			ptr += BUF_SIZE;
-			*ptr = '\0';
+			printf("PRATIK: Selecting buffer number %d\n", *current_buf_num);
 			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
 		}
 		if (pthread_mutex_unlock(sblock_lk)) {
@@ -299,12 +326,16 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 					ptr = (char *) current_buf_ptr;
 					*ptr = '\n';
 					current_buf_ptr++;
-					current_buf_ptr += size_info_len;
-					data_line = malloc(data_line_len * sizeof(char));
-					snprintf(data_line, data_line_len, "%s\n", cat_buf);
-					strncpy(current_buf_ptr, data_line, data_line_len);
+//					current_buf_ptr += size_info_len;
+					data_line = malloc(concatenate_len * sizeof(char));
+//					data_line = malloc(data_line_len * sizeof(char));
+					snprintf(data_line, concatenate_len, "%s\n", cat_buf);
+//					snprintf(data_line, data_line_len, "%s\n", cat_buf);
+//					strncpy(current_buf_ptr, data_line, data_line_len);
+					strncpy(current_buf_ptr, data_line, concatenate_len);
 					current_buf_available_size -= data_line_len;
-					current_buf_ptr += data_line_len - 1;
+					current_buf_available_size -= concatenate_len;
+					current_buf_ptr += data_line_len;
 					ptr = (char *) current_buf_ptr;
 					*ptr = '\n';
 					current_buf_ptr++;
