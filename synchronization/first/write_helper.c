@@ -87,6 +87,8 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 			printf("\nFailed to acquire superblock lock\n");
 			goto out;
 		}
+		ptr = *current_buf_ptr;
+		*ptr = '\0';
 		/*
 		ptr += BUF_SIZE - *current_buf_size - 2;
 		*ptr = '\0';
@@ -111,12 +113,11 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 		}
 		*/
 
-fetch_next_buf:
 		// Need to move to next buffer
 		*current_buf_num = (*current_buf_num + 1) % rwstats->buf_count;
+fetch_next_buf:
 		if ((bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) ||
 			(bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num))) {
-//			sleep(2);
 			/* 
 			 * Either consumer has not consumed this buffer yet or
 			 * other producer thread is writing to this buffer right
@@ -128,7 +129,7 @@ fetch_next_buf:
 				printf("\nFailed to release superblock lock\n");
 				goto out;
 			}
-			exit(1);
+//			exit(1);
 			sleep(3);
 			if (pthread_mutex_lock(sblock_lk)) {
 				printf("\nFailed to acquire superblock lock\n");
@@ -245,6 +246,17 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 		c = read(fd, (void *) buf, MAX_SIZE);
 		if (c == 0) {
 			printf("\nEOF\n");
+			ptr = (char *) current_buf_ptr;
+			*ptr = '\0';
+			if (pthread_mutex_lock(sblock_lk)) {
+				printf("\nFailed to acquire superblock lock\n");
+				goto out;
+			}
+			bitmap_set_bit(consumer_bitmap_ptr, current_buf_num);
+			if (pthread_mutex_unlock(sblock_lk)) {
+				printf("\nFailed to release superblock lock\n");
+				goto out;
+			}
 			break;
 		} else if (c == -1) {
 			printf("\nError reading the file.\n");
