@@ -12,7 +12,8 @@ int map_super_block(struct reader_writer_stats *rwstats)
 			rwstats->sblock_fd, 0);
 		       
 	if (sblock_mapped == MAP_FAILED) {
-		printf("\nFailed to mmap the shared region of super block.\n");
+		printf("\n%s: Failed to mmap the shared region of super "
+				"block.\n", __func__);
 		goto out;
 	}
 	ret = 0;
@@ -29,7 +30,9 @@ int get_length(char *buf, int buf_len)
 	int len = 0;
 
 	for (i = buf_len - 1; i >= 0; i--) {
-//		printf("PRATIK: Reading character %c\n", buf[i]);
+#ifdef DEBUG
+		printf("\n%s: Reading character %c\n", __func__, buf[i]);
+#endif
 		len += (buf[i] - '0') * pow(10, j++);
 	}
 
@@ -43,14 +46,16 @@ int get_buf_num(struct reader_writer_stats *rwstats, void *sblock_lk,
 
 	if (*current_buf_num >= 0 && *current_buf_num < rwstats->buf_count) {
 		if (pthread_mutex_lock(sblock_lk)) {
-			printf("\nFailed to acquire superblock lock\n");
+			printf("\n%s: Failed to acquire superblock lock\n",
+					__func__);
 			goto out;
 		}
 		if (bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
 			bitmap_clear_bit(consumer_bitmap_ptr, *current_buf_num);
 		}
 		if (pthread_mutex_unlock(sblock_lk)) {
-			printf("\nFailed to release superblock lock\n");
+			printf("\n%s: Failed to release superblock lock\n",
+					__func__);
 			goto out;
 		}
 	}
@@ -60,24 +65,26 @@ int get_buf_num(struct reader_writer_stats *rwstats, void *sblock_lk,
 
 fetch_next_buf:
 	if (pthread_mutex_lock(sblock_lk)) {
-		printf("\nFailed to acquire superblock lock\n");
+		printf("\n%s: Failed to acquire superblock lock\n", __func__);
 		goto out;
 	}
 	if (!bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
 		if (pthread_mutex_unlock(sblock_lk)) {
-			printf("\nFailed to release superblock lock\n");
+			printf("\n%s: Failed to release superblock lock\n",
+					__func__);
 			goto out;
 		}
-		printf("\nPRATIK: Going for sleep for buffer %d\n",
+		printf("\nReader: Going to sleep for buffer number %d\n",
 				*current_buf_num);
 		sleep(2);
 		goto fetch_next_buf;
 	}
 	if (pthread_mutex_unlock(sblock_lk)) {
-		printf("\nFailed to release superblock lock\n");
+		printf("\n%s: Failed to release superblock lock\n", __func__);
 		goto out;
 	}
-	printf("PRATIK: New buffer num = %d\n", *current_buf_num);
+	printf("\nReader: New buffer number %d selected for reading.\n",
+			*current_buf_num);
 	ret = 0;
 out:
 	return ret;
@@ -113,7 +120,8 @@ int consume_shared_buffers(struct reader_writer_stats *rwstats,
 			PROT_WRITE | PROT_READ, MAP_SHARED,
 			rwstats->sblock_fd, 0);
 	if (sblock_mapped == MAP_FAILED) {
-		printf("\nFailed to mmap the shared region of super block.\n");
+		printf("\n%s: Failed to mmap the shared region of super "
+				"block.\n", __func__);
                 goto out;
         }
 
@@ -121,7 +129,8 @@ int consume_shared_buffers(struct reader_writer_stats *rwstats,
 			PROT_WRITE | PROT_READ, MAP_SHARED,
 			rwstats->sblock_lk_fd, 0);
 	if (sblock_lk == MAP_FAILED) {
-		printf("\nFailed to mmap the superblock lock.\n");
+		printf("\n%s: Failed to mmap the superblock lock.\n",
+				__func__);
 		goto out;
 	}
 
@@ -130,7 +139,8 @@ int consume_shared_buffers(struct reader_writer_stats *rwstats,
 
 	sbuf_mapped = open_all_shared_bufs(rwstats);
 	if (!sbuf_mapped) {
-		printf("\nFailed to open all bufs for writing.\n");
+		printf("\n%s: Failed to open all bufs for writing.\n",
+				__func__);
 		goto out;
 	}
 
@@ -144,8 +154,6 @@ consume_next_buffer:
 		len_buf = data_buf = NULL;
 		read_len = 0;
 		len_start = len_end;
-//		if (*ptr == '\n')
-//			ptr++;
 		start = ptr;
 		data_line_len = 0;
 		while (*ptr != '\n') {
@@ -153,34 +161,34 @@ consume_next_buffer:
 			ptr++;
 		}
 		read_len = len_end - len_start;
-		printf("PRATIK: (%d - %d) = read_len = %d\n", len_end,
+#ifdef DEBUG
+		printf("\n%s: (%d - %d) = read_len = %d\n", __func__, len_end,
 				len_start, read_len);
+#endif
 		len_buf = malloc(read_len * sizeof(char));
-//		memset(len_buf, '\0', read_len);
 		memcpy(len_buf, start, read_len);
 		data_line_len = get_length(len_buf, read_len);
-		printf("PRATIK: Length = %d\n", data_line_len);
+#ifdef DEBUG
+		printf("\n%s: Length = %d\n", __func__, data_line_len);
+#endif
 		len_end++;
 		ptr++;
 		start = ptr;
 		len_start = len_end;
 		data_buf = malloc((data_line_len + 2) * sizeof(char));
-//		memset(data_buf, '\0', (data_line_len + 2));
 		data_buf[data_line_len] = '.';
 		data_buf[data_line_len + 1] = '\n';
 		memcpy(data_buf, start, data_line_len);
 		len_end += data_line_len + 1;
-		printf("PRATIK: Writing %s", data_buf);
+#ifdef DEBUG
+		printf("\n%s: Writing %s\n", __func__, data_buf);
+#endif
 		ret = write(fd, data_buf, data_line_len + 2);
 		if (ret == -1) {
 			perror("Write error:");
 			goto out;
 		}
 		ptr += data_line_len + 1;
-		if (*ptr == '\0') {
-			printf("PRATIK: Ohh WOW! NULL ptr\n");
-//			goto out;
-		}
 		free(len_buf);
 		free(data_buf);
 	}

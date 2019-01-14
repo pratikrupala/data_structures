@@ -54,21 +54,23 @@ int slock_mutex_create(const char *sfile_name, int *created)
 		return sfd;
 	}
 	if (sfd == -1) {
-		printf("\nFailed to do shm_open.\n");
-//		printf("\nErr no = %d\n", errno);
-//		printf("\nErr str = %s\n", strerror(errno));
+		printf("\n%s: Failed to do shm_open.\n", __func__);
+#ifdef DEBUG
+		printf("\n%s: Error no = %d\n", __func__, errno);
+		printf("\n%s: Error string = %s\n", __func__, strerror(errno));
+#endif
 		return -1;
 	}
 
 	if (ftruncate(sfd, sizeof(pthread_mutex_t))) {
-		printf("\nFtruncate failed.\n");
+		printf("\n%s: Ftruncate failed.\n", __func__);
 		return -1;
 	}
 
 	mapped = mmap(NULL, sizeof(pthread_mutex_t), PROT_WRITE | PROT_READ,
 			MAP_SHARED, sfd, 0);
 	if (mapped == MAP_FAILED) {
-		printf("\nFailed to mmap the shared region.\n");
+		printf("\n%s: Failed to mmap the shared region.\n", __func__);
 		return -1;
 	}
 
@@ -76,22 +78,25 @@ int slock_mutex_create(const char *sfile_name, int *created)
 
 	pthread_mutexattr_t mattr;
 	if (pthread_mutexattr_init(&mattr)) {
-		printf("\nFailed to initialize mutex attribute.\n");
+		printf("\n%s: Failed to initialize mutex attribute.\n",
+				__func__);
 		return -1;
 	}
 
 	if (pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED)) {
-		printf("\nFailed to set mutex attribute.\n");
+		printf("\n%s: Failed to set mutex attribute.\n", __func__);
 		return -1;
 	}
 
 	if (pthread_mutex_init(slk, &mattr)) {
-		printf("\nFailed to initiliaze the shared mutex.\n");
+		printf("\n%s: Failed to initiliaze the shared mutex.\n",
+			       __func__);
 		return -1;
 	}
 
 	if (munmap(mapped, sizeof(pthread_mutex_t))) {
-		printf("\nFailed to unmap the shared mutex region.\n");
+		printf("\n%s: Failed to unmap the shared mutex region.\n",
+				__func__);
 		return -1;
 	}
 
@@ -106,7 +111,8 @@ int slock_mutex_delete(int *slk_fds, int count)
 
 	slock_mapped = malloc(count * sizeof(void *));
 	if (!slock_mapped) {
-		printf("\nFailed to allocate memory for slock_mapped.\n");
+		printf("\n%s: Failed to allocate memory for slock_mapped.\n",
+				__func__);
 		goto out;
 	}
 
@@ -116,7 +122,8 @@ int slock_mutex_delete(int *slk_fds, int count)
 				PROT_WRITE | PROT_READ, MAP_SHARED,
 				slk_fds[i], 0);
 		if (slock_mapped[i] == MAP_FAILED) {
-			printf("\nFailed to do mmap for destroying mutexes.\n");
+			printf("\n%s: Failed to do mmap for destroying "
+					"mutexes.\n", __func__);
 			goto out;
 		}
 	}
@@ -124,7 +131,8 @@ int slock_mutex_delete(int *slk_fds, int count)
 	for (i = 0; i < count; i++) {
 		ret = pthread_mutex_destroy(slock_mapped[i]);
 		if (ret) {
-			printf("\nFailed to destroy mutex number %d.\n", i);
+			printf("\n%s: Failed to destroy mutex number %d.\n",
+					__func__, i);
 			goto out;
 		}
 	}
@@ -170,20 +178,21 @@ int create_super_block(struct reader_writer_stats *rwstats)
 				O_CREAT|O_RDWR, 0666);
 	}
 	if (rwstats->sblock_fd == -1) {
-		printf("\nFailed to create shared memory for super block.\n");
+		printf("\n%s: Failed to create shared memory for super "
+				"block.\n", __func__);
 		ret = -1;
 		goto out;
 	}
 
 	if (ftruncate(rwstats->sblock_fd, rwstats->super_block_size)) {
-		printf("\nSuperblock ftruncate failed.\n");
+		printf("\n%s: Superblock ftruncate failed.\n", __func__);
 		return -1;
 	}
 
 	rwstats->sblock_lk_name = malloc((strlen(SBLOCK_LK_NAME)) * sizeof(char));
 	if (!rwstats->sblock_lk_name) {
-		printf("\nFailed to allocate memory for super block lock name"
-				" string.\n");
+		printf("\n%s: Failed to allocate memory for super block lock "
+				"name string.\n", __func__);
 		goto release_super_block;
 	}
 
@@ -191,13 +200,13 @@ int create_super_block(struct reader_writer_stats *rwstats)
 
 	rwstats->sblock_lk_fd = slock_mutex_create(rwstats->sblock_lk_name, &created);
 	if (rwstats->sblock_lk_fd == -1) {
-		printf("\nFailed to create shared memory buffer for keeping"
-				" super block lock.\n");
+		printf("\n%s: Failed to create shared memory buffer for keeping"
+				" super block lock.\n", __func__);
 		goto release_sblock_lk_name;
 	}
 
 	if (!created) {
-		printf("\nSuper block lock already exists.\n");
+		printf("\n%s: Super block lock already exists.\n", __func__);
 		ret = 0;
 		goto out;
 	}
@@ -220,13 +229,15 @@ int create_shared_buffers_mappings(struct reader_writer_stats *rwstats)
 
 	rwstats->buf_fds = malloc(rwstats->buf_count * sizeof(int));
 	if (!rwstats->buf_fds) {
-		printf("\nFailed to allocaet memory for buffers fds.\n");
+		printf("\n%s: Failed to allocaet memory for buffers fds.\n",
+				__func__);
 		goto out;
 	}
 
 	rwstats->buf_names = malloc(rwstats->buf_count * sizeof(char *));
 	if (!rwstats->buf_names) {
-		printf("\nFailed to allocate memory for buffer name pointers.\n");
+		printf("\n%s: Failed to allocate memory for buffer name "
+				"pointers.\n", __func__);
 		goto release_buf_fds;
 	}
 
@@ -235,8 +246,8 @@ int create_shared_buffers_mappings(struct reader_writer_stats *rwstats)
 		rwstats->buf_names[i] = (char *) malloc(buf_name_len *
 				sizeof(char));
 		if (!rwstats->buf_names[i]) {
-			printf("\nFailed to allocate memory for buffer name"
-					" for buffer number %d.\n", i);
+			printf("\n%s: Failed to allocate memory for buffer name"
+					" for buffer number %d.\n", __func__, i);
 			goto release_buf_pointers; 
 		}
 	}
@@ -246,9 +257,13 @@ int create_shared_buffers_mappings(struct reader_writer_stats *rwstats)
 	}
 
 	for (i = 0; i < rwstats->buf_count; i++) {
-		rwstats->buf_fds[i] = shm_open(rwstats->buf_names[i], O_RDWR, 0660);
-		printf("PRATIK: rwstats->buf_fds[%d] = %d, buf_count = %d\n",
-				i, rwstats->buf_fds[i], rwstats->buf_count);
+		rwstats->buf_fds[i] = shm_open(rwstats->buf_names[i], O_RDWR,
+				0660);
+#ifdef DEBUG
+		printf("\n%s: rwstats->buf_fds[%d] = %d, buf_count = %d\n",
+				__func__, i, rwstats->buf_fds[i],
+				rwstats->buf_count);
+#endif
 		if (errno == ENOENT) {
 			rwstats->buf_fds[i] = shm_open(rwstats->buf_names[i],
 					O_CREAT|O_RDWR, 0660);
@@ -256,8 +271,8 @@ int create_shared_buffers_mappings(struct reader_writer_stats *rwstats)
 			just_opened = 1;
 		}
 		if (rwstats->buf_fds[i] == -1) {
-			printf("\nfailed to create a shared buffer for buffer"
-					" number %d\n", i);
+			printf("\n%s: failed to create a shared buffer for "
+					"buffer number %d\n", __func__, i);
 			goto release_bufs;
 		}
 	}
@@ -269,8 +284,8 @@ int create_shared_buffers_mappings(struct reader_writer_stats *rwstats)
 
 	for (i = 0; i < rwstats->buf_count; i++) {
 		if (ftruncate(rwstats->buf_fds[i], BUF_SIZE)) {
-			printf("\nFailed to set size for shared buffer"
-					" number %d\n", i);
+			printf("\n%s: Failed to set size for shared buffer"
+					" number %d\n", __func__, i);
 			goto close_fds;
 		}
 	}
@@ -280,8 +295,8 @@ int create_shared_buffers_mappings(struct reader_writer_stats *rwstats)
 close_fds:
 	for (i = 0; i < rwstats->buf_count; i++) {
 		if (shm_unlink(rwstats->buf_names[i])) {
-			printf("\nFailed to destroy shared buffer"
-					" number %d\n", i);
+			printf("\n%s:Failed to destroy shared buffer"
+					" number %d\n", __func__, i);
 		}
 	}
 release_bufs:
@@ -303,7 +318,8 @@ void **open_all_shared_bufs(struct reader_writer_stats *rwstats)
 
 	sbuf_mapped = malloc(rwstats->buf_count * sizeof(void *));
 	if (!sbuf_mapped) {
-		printf("\nFailed to allocate memory for sbuf_mapped.\n");
+		printf("\n%s: Failed to allocate memory for sbuf_mapped.\n",
+				__func__);
 		goto out;
 	}
 
@@ -312,10 +328,13 @@ void **open_all_shared_bufs(struct reader_writer_stats *rwstats)
 				PROT_WRITE | PROT_READ, MAP_SHARED,
 				rwstats->buf_fds[i], 0);
 		if (sbuf_mapped[i] == MAP_FAILED) {
-			printf("\nFailed to mmap the shared buffer number %d "
-					"for filling up block, buffer "
-					"fd = %d.\n", i, rwstats->buf_fds[i]);
+			printf("\n%s: Failed to mmap the shared buffer number "
+					"%d for filling up block, buffer fd = "
+					"%d.\n", __func__, i,
+					rwstats->buf_fds[i]);
+#ifdef DEBUG
 			perror("Buffer mmap failed: ");
+#endif
 			goto out;
 		}
 	}

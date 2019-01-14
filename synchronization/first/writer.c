@@ -34,50 +34,51 @@ int main(int argc, char *argv[])
 		}
 	}
 
+#ifdef DEBUG
+	printf("\n%s: Allocating memory for rwstats structure.\n", __func__);
+#endif
 	rwstats = malloc(sizeof(struct reader_writer_stats));
 	if (!rwstats) {
-		printf("\nFailed to allocate memory for stats structure.\n");
+		printf("\n%s: Failed to allocate memory for stats "
+				"structure.\n", __func__);
 		goto out;
 	}
 	rwstats->buf_count = buf_count;
 	rwstats->buf_name_len = strlen(BUF_NAMES) + 1;
 	rwstats->buf_name = malloc(rwstats->buf_name_len * sizeof(char));
 	if (!rwstats->buf_name) {
-		printf("\nFailed to allocate memory for buffer names.\n");
+		printf("\n%s: Failed to allocate memory for buffer names.\n",
+				__func__);
 		goto release_rwstats;
 	}
 	snprintf(rwstats->buf_name, rwstats->buf_name_len, "%s", BUF_NAMES);
 	rwstats->buf_name[rwstats->buf_name_len] = '\0';
 
+	printf("\nWriter: Creating a new super block.\n");
 	ret = create_super_block(rwstats);
 	if (ret) {
-		printf("\nFailed to create super block.\n");
+		printf("\n%s: Failed to create super block.\n", __func__);
 		goto release_buf_name;
 	}
 
+	printf("\nWriter: Initializing the super block.\n");
 	ret = initialize_super_block(rwstats);
 	if (ret) {
-		printf("\nFailed to initialize super block.\n");
+		printf("\n%s: Failed to initialize super block.\n", __func__);
 		goto release_super_block;
 	}
 
-	/*
-	ret = create_lock_resources(rwstats);
-	if (ret) {
-		printf("\nFailed to create lock resources.\n");
-		goto release_super_block;
-	}
-	*/
-
+	printf("\nWriter: Creating the shared buffers.\n");
 	ret = create_shared_buffers_mappings(rwstats);
 	if (ret) {
-		printf("\nFailed to allocate shared buffers.\n");
+		printf("\n%s: Failed to allocate shared buffers.\n", __func__);
 		goto release_super_block;
 	}
 
+	printf("\nWriter: Starting to filling up the shared buffers.\n");
 	ret = fill_shared_buffers(rwstats, file_name);
 	if (ret) {
-		printf("\nFailed to fill up shared buffers.\n");
+		printf("\n%sFailed to fill up shared buffers.\n", __func__);
 		goto release_buffer_resources;
 	}
 	ret = 0;

@@ -18,6 +18,9 @@ RM = rm -f
 
 all: $(TARGET1) $(TARGET2)
 
+debug: CFLAGS += -DDEBUG
+debug: $(TARGET1) $(TARGET2)
+
 $(TARGET1): $(OBJS1) $(COMMONOBJS1)
 	$(CC) $(CFLAGS) -o $@ $(OBJS1) $(COMMONOBJS1) $(LIBS1)
 

@@ -11,7 +11,8 @@ int initialize_super_block(struct reader_writer_stats *rwstats)
 			PROT_WRITE | PROT_READ, MAP_SHARED,
 			rwstats->sblock_fd, 0);
 	if (sblock_mapped == MAP_FAILED) {
-		printf("\nFailed to mmap the shared region of super block.\n");
+		printf("\n%s, Failed to mmap the shared region of super "
+				"block.\n", __func__);
 		goto out;
 	}
 
@@ -30,7 +31,8 @@ int initialize_super_block(struct reader_writer_stats *rwstats)
 	memset(buf, 0, (rwstats->buf_count/8) + 1);
 
 	if (munmap(sblock_mapped, rwstats->super_block_size)) {
-		printf("\nFailed to unmap the shared superblock region.\n");
+		printf("\n%s: Failed to unmap the shared superblock region.\n",
+				__func__);
 		goto out;
 	}
 
@@ -62,12 +64,13 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 
 	if ((*current_buf_size - 1) >= len_to_write) {
 		if (pthread_mutex_lock(sblock_lk)) {
-			printf("\nFailed to acquire superblock lock\n");
+			printf("\n%s: Failed to acquire superblock lock\n",
+					__func__);
 			goto out;
 		}
 		if (bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
-			printf("\nAlready writing in the wrong buffer. "
-					"Abort.\n");
+			printf("\n%s: Already writing in the wrong buffer. "
+					"Abort.\n", __func__);
 			pthread_mutex_unlock(sblock_lk);
 			goto out;
 		}
@@ -75,7 +78,8 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
 		}
 		if (pthread_mutex_unlock(sblock_lk)) {
-			printf("\nFailed to release superblock lock\n");
+			printf("\n%s: Failed to release superblock lock\n",
+					__func__);
 			goto out;
 		}
 		ret = 0;
@@ -84,40 +88,33 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 
 	while ((*current_buf_size - 1) < len_to_write) {
 		if (pthread_mutex_lock(sblock_lk)) {
-			printf("\nFailed to acquire superblock lock\n");
+			printf("\n%s: Failed to acquire superblock lock\n",
+					__func__);
 			goto out;
 		}
 		ptr = *current_buf_ptr;
 		*ptr = '\0';
-		/*
-		ptr += BUF_SIZE - *current_buf_size - 2;
-		*ptr = '\0';
-		*/
 		// Set 1 in consumer bitmap for the current buffer
 		bitmap_set_bit(consumer_bitmap_ptr, *current_buf_num);
 		bitmap_clear_bit(producer_bitmap_ptr, *current_buf_num);
+		printf("\nWriter: No space left in buffer number %d.\n",
+				*current_buf_num);
+#ifdef DEBUG
 		ptr = (char *) sbuf_mapped[*current_buf_num];
-		printf("\n\n\nCHALU\n\n\n");
+		printf("\n\n\n%s: Dump of the buffer number %d\n\n\n",
+				__func__, *current_buf_num);
 		while (*ptr != '\0') {
 			printf("%c", *ptr);
 			ptr++;
 		}
-		/*
-		if (*current_buf_num == 2) {
-			printf("\n\n\n\nOH MY GOODNESS!!\n\n\n\n");
-			ptr += 3;
-			while (*ptr != '\0') {
-				printf("%c", *ptr);
-				ptr++;
-			}
-		}
-		*/
+#endif
 
 		// Need to move to next buffer
 		*current_buf_num = (*current_buf_num + 1) % rwstats->buf_count;
 fetch_next_buf:
 		if ((bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) ||
-			(bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num))) {
+			(bitmap_get_bit(consumer_bitmap_ptr,
+					*current_buf_num))) {
 			/* 
 			 * Either consumer has not consumed this buffer yet or
 			 * other producer thread is writing to this buffer right
@@ -126,13 +123,17 @@ fetch_next_buf:
 			 * going for sleep.
 			 */	
 			if (pthread_mutex_unlock(sblock_lk)) {
-				printf("\nFailed to release superblock lock\n");
+				printf("\n%s: Failed to release superblock "
+						"lock\n", __func__);
 				goto out;
 			}
-//			exit(1);
+			printf("\nWaiting for consumer to consume buffer "
+					"number %d. Till then keep waiting.\n",
+					*current_buf_num);
 			sleep(3);
 			if (pthread_mutex_lock(sblock_lk)) {
-				printf("\nFailed to acquire superblock lock\n");
+				printf("\n%s: Failed to acquire superblock "
+						"lock\n", __func__);
 				goto out;
 			}
 			goto fetch_next_buf;
@@ -146,12 +147,14 @@ fetch_next_buf:
 			 * going for sleep.
 			 */
 			if (pthread_mutex_unlock(sblock_lk)) {
-				printf("\nFailed to release superblock lock\n");
+				printf("\n%s: Failed to release superblock "
+						"lock\n", __func__);
 				goto out;
 			}
 			sleep(3);
 			if (pthread_mutex_lock(sblock_lk)) {
-				printf("\nFailed to acquire superblock lock\n");
+				printf("\n%s: Failed to acquire superblock "
+						"lock\n", __func__);
 				goto out;
 			}
 			goto fetch_next_buf;
@@ -159,11 +162,17 @@ fetch_next_buf:
 			// We can use newly calculated buffer number
 			*current_buf_size = BUF_SIZE;
 			*current_buf_ptr = sbuf_mapped[*current_buf_num];
-			printf("PRATIK: Selecting buffer number %d\n", *current_buf_num);
+			printf("\nWriter: Buffer number %d is selected for "
+					"writing.\n", *current_buf_num);
+#ifdef DEBUG
+			printf("%s: Selecting buffer number %d\n",
+					__func__, *current_buf_num);
+#endif
 			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
 		}
 		if (pthread_mutex_unlock(sblock_lk)) {
-			printf("\nFailed to release superblock lock\n");
+			printf("\n%s: Failed to release superblock lock\n",
+					__func__);
 			goto out;
 		}
 	}
@@ -212,7 +221,8 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 			PROT_WRITE | PROT_READ, MAP_SHARED,
 			rwstats->sblock_fd, 0);
 	if (sblock_mapped == MAP_FAILED) {
-		printf("\nFailed to mmap the shared region of super block.\n");
+		printf("\n%s: Failed to mmap the shared region of super "
+				"block.\n", __func__);
 		goto out;
 	}
 
@@ -220,7 +230,8 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 			PROT_WRITE | PROT_READ, MAP_SHARED,
 			rwstats->sblock_lk_fd, 0);
 	if (sblock_lk == MAP_FAILED) {
-		printf("\nFailed to mmap the superblock lock.\n");
+		printf("\n%s: Failed to mmap the superblock lock.\n",
+				__func__);
 		goto out;
 	}
 
@@ -231,7 +242,8 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 
 	sbuf_mapped = open_all_shared_bufs(rwstats);
 	if (!sbuf_mapped) {
-		printf("\nFailed to open all bufs for writing.\n");
+		printf("\n%s: Failed to open all bufs for writing.\n",
+				__func__);
 		goto out;
 	}
 
@@ -240,8 +252,12 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 	ptr += BUF_SIZE;
 	*ptr = '\0';
 
+	printf("\nWriter: Buffer number %d is selected for writing.\n",
+			current_buf_num);
 	while (1) {
+#ifdef DEBUG
 		static int i = 0;
+#endif
 
 		c = read(fd, (void *) buf, MAX_SIZE);
 		if (c == 0) {
@@ -249,20 +265,24 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 			ptr = (char *) current_buf_ptr;
 			*ptr = '\0';
 			if (pthread_mutex_lock(sblock_lk)) {
-				printf("\nFailed to acquire superblock lock\n");
+				printf("\n%s: Failed to acquire superblock "
+						"lock\n", __func__);
 				goto out;
 			}
 			bitmap_set_bit(consumer_bitmap_ptr, current_buf_num);
 			if (pthread_mutex_unlock(sblock_lk)) {
-				printf("\nFailed to release superblock lock\n");
+				printf("\n%s: Failed to release superblock "
+						"lock\n", __func__);
 				goto out;
 			}
 			break;
 		} else if (c == -1) {
-			printf("\nError reading the file.\n");
+			printf("\n%s: Error reading the file.\n", __func__);
 			goto out;
 		} else {
-			// printf("\nRead %lu bytes.\n", c);
+#ifdef DEBUG
+			printf("\n%s: Read %lu bytes.\n", __func__, c);
+#endif
 		}
 
 		buf[MAX_SIZE] = '\0';
@@ -287,7 +307,10 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 							sbuf_mapped, &current_buf_ptr);
 					size_info = malloc(size_info_len * sizeof(char));
 					snprintf(size_info, size_info_len, "%lu\n", strlen(start));
-					printf("PRATIK: Size info = %s, len = %d", size_info, size_info_len);
+#ifdef DEBUG
+					printf("%s: Size info = %s, len = %d", __func__, size_info,
+							size_info_len);
+#endif
 					strncpy(current_buf_ptr, size_info, size_info_len);
 					current_buf_available_size -= size_info_len;
 					current_buf_ptr += calculate_digits(strlen(start));
@@ -302,8 +325,11 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 					ptr = (char *) current_buf_ptr;
 					*ptr = '\n';
 					current_buf_ptr++;
-					printf("\nWriting to buf number = %d\n", current_buf_num);
-					printf("\n[%d]: %s.\n", i++, start);
+#ifdef DEBUG
+					printf("\n%s: Writing to buf number = %d\n", __func__,
+							current_buf_num);
+					printf("\n%s: [%d]: %s.\n", __func__, i++, start);
+#endif
 					free(size_info);
 					free(data_line);
 				} else {
@@ -315,8 +341,8 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 							sizeof(char));
 					memset(cat_buf, '\0', strlen(cat_buf));
 					if (!cat_buf) {
-						printf("\nFailed to allocate memory for "
-								"concatenation\n");
+						printf("\n%s: Failed to allocate memory for "
+								"concatenation\n", __func__);
 					}
 					cat_buf = strncpy(cat_buf, prev_buf,
 							strlen(prev_buf));
@@ -338,12 +364,8 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 					ptr = (char *) current_buf_ptr;
 					*ptr = '\n';
 					current_buf_ptr++;
-//					current_buf_ptr += size_info_len;
 					data_line = malloc(concatenate_len * sizeof(char));
-//					data_line = malloc(data_line_len * sizeof(char));
 					snprintf(data_line, concatenate_len, "%s\n", cat_buf);
-//					snprintf(data_line, data_line_len, "%s\n", cat_buf);
-//					strncpy(current_buf_ptr, data_line, data_line_len);
 					strncpy(current_buf_ptr, data_line, concatenate_len);
 					current_buf_available_size -= data_line_len;
 					current_buf_available_size -= concatenate_len;
@@ -351,8 +373,11 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 					ptr = (char *) current_buf_ptr;
 					*ptr = '\n';
 					current_buf_ptr++;
-					printf("\nWriting to buf number = %d\n", current_buf_num);
-					printf("\n[%d]: %s.\n", i++, cat_buf);
+#ifdef DEBUG
+					printf("\n%s: Writing to buf number = %d\n", __func__,
+							current_buf_num);
+					printf("\n%s: [%d]: %s.\n", __func__, i++, cat_buf);
+#endif
 					if (prev_buf)
 						free(prev_buf);
 					if (cat_buf)
@@ -399,8 +424,9 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 				prev_buf = realloc(prev_buf, strlen(prev_buf)
 						+ prev_count);
 				if (!prev_buf) {
-					printf("\nFailed to realloc for "
-							"previous buffer.\n");
+					printf("\n%s: Failed to realloc for "
+							"previous buffer.\n",
+							__func__);
 					goto out;
 				}
 				prev_buf = strncat(prev_buf, start,
@@ -412,9 +438,9 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 						prev_count);
 				*(prev_buf + prev_count) = '\0';
 				if (!prev_buf) {
-					printf("\nThe strncpy() failed for"
-							" incomplete "
-							"sentence\n");
+					printf("\n%s: The strncpy() failed for"
+							" incomplete sentence\n",
+							__func__);
 					goto out;
 				}
 			}
