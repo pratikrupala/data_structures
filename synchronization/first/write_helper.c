@@ -54,37 +54,12 @@ int calculate_digits(int size)
 }
 
 int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
-		int len_to_write, void *sblock_lk, char *producer_bitmap_ptr,
-		char *consumer_bitmap_ptr, int *current_buf_num,
-		void **sbuf_mapped, void **current_buf_ptr)
+		int len_to_write, void *sblock_lk, char *bitmap_ptr,
+		int *current_buf_num, void **sbuf_mapped,
+		void **current_buf_ptr)
 {
 	int ret = -1;
-	int original_buf_num = *current_buf_num;
 	char *ptr = NULL;
-
-	if ((*current_buf_size - 1) >= len_to_write) {
-		if (pthread_mutex_lock(sblock_lk)) {
-			printf("\n%s: Failed to acquire superblock lock\n",
-					__func__);
-			goto out;
-		}
-		if (bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
-			printf("\n%s: Already writing in the wrong buffer. "
-					"Abort.\n", __func__);
-			pthread_mutex_unlock(sblock_lk);
-			goto out;
-		}
-		if (!bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) {
-			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
-		}
-		if (pthread_mutex_unlock(sblock_lk)) {
-			printf("\n%s: Failed to release superblock lock\n",
-					__func__);
-			goto out;
-		}
-		ret = 0;
-		goto out;
-	}
 
 	while ((*current_buf_size - 1) < len_to_write) {
 		if (pthread_mutex_lock(sblock_lk)) {
@@ -94,9 +69,8 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 		}
 		ptr = *current_buf_ptr;
 		*ptr = '\0';
-		// Set 1 in consumer bitmap for the current buffer
-		bitmap_set_bit(consumer_bitmap_ptr, *current_buf_num);
-		bitmap_clear_bit(producer_bitmap_ptr, *current_buf_num);
+		// Set 1 in bitmap for the current buffer
+		bitmap_set_bit(bitmap_ptr, *current_buf_num);
 		printf("\nWriter: No space left in buffer number %d.\n",
 				*current_buf_num);
 #ifdef DEBUG
@@ -111,14 +85,11 @@ int confirm_buf_num(struct reader_writer_stats *rwstats, int *current_buf_size,
 
 		// Need to move to next buffer
 		*current_buf_num = (*current_buf_num + 1) % rwstats->buf_count;
-fetch_next_buf:
-		if ((bitmap_get_bit(producer_bitmap_ptr, *current_buf_num)) ||
-			(bitmap_get_bit(consumer_bitmap_ptr,
-					*current_buf_num))) {
+recheck_buf_availability:
+		if (bitmap_get_bit(bitmap_ptr, *current_buf_num)) {
 			/* 
 			 * Either consumer has not consumed this buffer yet or
-			 * other producer thread is writing to this buffer right
-			 * now or somthing has gone wrong. so try some other buffer
+			 * somthing has gone wrong. So retry for the same buffer
 			 * after sleeping for some time. Don't hold lock while
 			 * going for sleep.
 			 */	
@@ -136,28 +107,7 @@ fetch_next_buf:
 						"lock\n", __func__);
 				goto out;
 			}
-			goto fetch_next_buf;
-		} else if (original_buf_num == *current_buf_num) {
-			/*
-			 * Reached at the same buffer from where we started, which
-			 * means either consumer has not started consuming the buffers
-			 * or somehow consumer is blocked. So before trying the same
-			 * again, lets consumer give some time to consume or unblock
-			 * itself and then resume again. Don't hold lock while
-			 * going for sleep.
-			 */
-			if (pthread_mutex_unlock(sblock_lk)) {
-				printf("\n%s: Failed to release superblock "
-						"lock\n", __func__);
-				goto out;
-			}
-			sleep(3);
-			if (pthread_mutex_lock(sblock_lk)) {
-				printf("\n%s: Failed to acquire superblock "
-						"lock\n", __func__);
-				goto out;
-			}
-			goto fetch_next_buf;
+			goto recheck_buf_availability;
 		} else {
 			// We can use newly calculated buffer number
 			*current_buf_size = BUF_SIZE;
@@ -168,7 +118,6 @@ fetch_next_buf:
 			printf("%s: Selecting buffer number %d\n",
 					__func__, *current_buf_num);
 #endif
-			bitmap_set_bit(producer_bitmap_ptr, *current_buf_num);
 		}
 		if (pthread_mutex_unlock(sblock_lk)) {
 			printf("\n%s: Failed to release superblock lock\n",
@@ -202,8 +151,7 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 	int len_size = 0;
 	void *sblock_lk = NULL;
 	void *sblock_mapped = NULL;
-	char *producer_bitmap_ptr = NULL;
-	char *consumer_bitmap_ptr = NULL;
+	char *bitmap_ptr = NULL;
 	char *size_info = NULL;
 	char *data_line = NULL;
 	int data_line_len = 0;
@@ -235,10 +183,7 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 		goto out;
 	}
 
-	producer_bitmap_ptr = (char *) sblock_mapped +
-		rwstats->producer_bitmap_offset;
-	consumer_bitmap_ptr = (char *) sblock_mapped +
-		rwstats->consumer_bitmap_offset;
+	bitmap_ptr = (char *) sblock_mapped + rwstats->bitmap_offset;
 
 	sbuf_mapped = open_all_shared_bufs(rwstats);
 	if (!sbuf_mapped) {
@@ -269,7 +214,7 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 						"lock\n", __func__);
 				goto out;
 			}
-			bitmap_set_bit(consumer_bitmap_ptr, current_buf_num);
+			bitmap_set_bit(bitmap_ptr, current_buf_num);
 			if (pthread_mutex_unlock(sblock_lk)) {
 				printf("\n%s: Failed to release superblock "
 						"lock\n", __func__);
@@ -302,9 +247,9 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 					data_line_len = strlen(start) + 1;
 					len_size = size_info_len + data_line_len;
 					confirm_buf_num(rwstats, &current_buf_available_size,
-							len_size, sblock_lk, producer_bitmap_ptr,
-							consumer_bitmap_ptr, &current_buf_num,
-							sbuf_mapped, &current_buf_ptr);
+							len_size, sblock_lk, bitmap_ptr,
+							&current_buf_num, sbuf_mapped,
+							&current_buf_ptr);
 					size_info = malloc(size_info_len * sizeof(char));
 					snprintf(size_info, size_info_len, "%lu\n", strlen(start));
 #ifdef DEBUG
@@ -350,9 +295,9 @@ int fill_shared_buffers(struct reader_writer_stats *rwstats, char *file_name)
 					cat_buf = strncat(cat_buf, start, concatenate_len);
 					len_size = size_info_len + concatenate_len;
 					confirm_buf_num(rwstats, &current_buf_available_size,
-							len_size, sblock_lk, producer_bitmap_ptr,
-							consumer_bitmap_ptr, &current_buf_num,
-							sbuf_mapped, &current_buf_ptr);
+							len_size, sblock_lk, bitmap_ptr,
+							&current_buf_num, sbuf_mapped,
+							&current_buf_ptr);
 					ptr = (char *) current_buf_ptr;
 					size_info = malloc(size_info_len * sizeof(char));
 					snprintf(size_info, size_info_len, "%lu\n", strlen(start) +

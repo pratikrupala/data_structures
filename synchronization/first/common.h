@@ -24,8 +24,7 @@ struct reader_writer_stats {
 	int buf_name_len;
 	int sblock_fd;
 	int super_block_size;
-	int producer_bitmap_offset;
-	int consumer_bitmap_offset;
+	int bitmap_offset;
 	int sblock_lk_fd;
 	char *sblock_lk_name;
 	int *buf_fds;	/* Data buffer fds */
@@ -39,8 +38,7 @@ struct super_block {
 	int buf_lk_name_len;
 	char *buf_name;
 	char *buf_lk_name;
-	int *producer_map;
-	int *consumer_map;
+	int *buffer_map;
 };
 
 void bitmap_set_bit(char *, int);

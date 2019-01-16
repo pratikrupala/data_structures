@@ -40,18 +40,22 @@ int get_length(char *buf, int buf_len)
 }
 
 int get_buf_num(struct reader_writer_stats *rwstats, void *sblock_lk,
-		char *consumer_bitmap_ptr, int *current_buf_num)
+		char *bitmap_ptr, int *current_buf_num)
 {
 	int ret = -1;
 
+	/* This function will be called only when current buffer is consumed
+	 * fully. So just clear the bit corresponding to this buffer in the
+	 * bitmap.
+	 */
 	if (*current_buf_num >= 0 && *current_buf_num < rwstats->buf_count) {
 		if (pthread_mutex_lock(sblock_lk)) {
 			printf("\n%s: Failed to acquire superblock lock\n",
 					__func__);
 			goto out;
 		}
-		if (bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
-			bitmap_clear_bit(consumer_bitmap_ptr, *current_buf_num);
+		if (bitmap_get_bit(bitmap_ptr, *current_buf_num)) {
+			bitmap_clear_bit(bitmap_ptr, *current_buf_num);
 		}
 		if (pthread_mutex_unlock(sblock_lk)) {
 			printf("\n%s: Failed to release superblock lock\n",
@@ -63,12 +67,12 @@ int get_buf_num(struct reader_writer_stats *rwstats, void *sblock_lk,
 	// Need to move to next buffer
 	*current_buf_num = (*current_buf_num + 1) % rwstats->buf_count;
 
-fetch_next_buf:
+recheck_buf_availability:
 	if (pthread_mutex_lock(sblock_lk)) {
 		printf("\n%s: Failed to acquire superblock lock\n", __func__);
 		goto out;
 	}
-	if (!bitmap_get_bit(consumer_bitmap_ptr, *current_buf_num)) {
+	if (!bitmap_get_bit(bitmap_ptr, *current_buf_num)) {
 		if (pthread_mutex_unlock(sblock_lk)) {
 			printf("\n%s: Failed to release superblock lock\n",
 					__func__);
@@ -77,7 +81,7 @@ fetch_next_buf:
 		printf("\nReader: Going to sleep for buffer number %d\n",
 				*current_buf_num);
 		sleep(2);
-		goto fetch_next_buf;
+		goto recheck_buf_availability;
 	}
 	if (pthread_mutex_unlock(sblock_lk)) {
 		printf("\n%s: Failed to release superblock lock\n", __func__);
@@ -97,7 +101,7 @@ int consume_shared_buffers(struct reader_writer_stats *rwstats,
 	int fd = -1;
 	void *sblock_mapped = NULL;
 	void *sblock_lk = NULL;
-	char *consumer_bitmap_ptr = NULL;
+	char *bitmap_ptr = NULL;
 	void **sbuf_mapped = NULL;
 	void *current_buf_ptr = NULL;
 	int data_line_len = 0;
@@ -134,8 +138,7 @@ int consume_shared_buffers(struct reader_writer_stats *rwstats,
 		goto out;
 	}
 
-	consumer_bitmap_ptr = (char *) sblock_mapped +
-		rwstats->consumer_bitmap_offset;
+	bitmap_ptr = (char *) sblock_mapped + rwstats->bitmap_offset;
 
 	sbuf_mapped = open_all_shared_bufs(rwstats);
 	if (!sbuf_mapped) {
@@ -145,7 +148,7 @@ int consume_shared_buffers(struct reader_writer_stats *rwstats,
 	}
 
 consume_next_buffer:
-	get_buf_num(rwstats, sblock_lk, consumer_bitmap_ptr, &current_buf_num);
+	get_buf_num(rwstats, sblock_lk, bitmap_ptr, &current_buf_num);
 	current_buf_ptr = sbuf_mapped[current_buf_num];
 
 	len_start = len_end = 0;

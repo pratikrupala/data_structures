@@ -160,14 +160,8 @@ int create_super_block(struct reader_writer_stats *rwstats)
 	// Buffer name size
 	rwstats->super_block_size += strlen(rwstats->buf_name) * sizeof(char);
 
-	// Producer bitmap offset
-	rwstats->producer_bitmap_offset = rwstats->super_block_size;
-
-	// Producer bitmap size
-	rwstats->super_block_size += (rwstats->buf_count/8) + 1;
-
 	// Consumer bitmap offset
-	rwstats->consumer_bitmap_offset = rwstats->super_block_size;
+	rwstats->bitmap_offset = rwstats->super_block_size;
 
 	// Consumer bitmap size
 	rwstats->super_block_size += (rwstats->buf_count/8) + 1;
