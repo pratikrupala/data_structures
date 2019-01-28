@@ -66,13 +66,21 @@ int setup_bitmap(int size)
 		return 1;
 }
 
+char *match_string(char *engine, char *query)
+{
+	if (strcmp(engine, query) == 0)
+		return query;
+	else
+		return NULL;
+}
+
 int find_query_str(char *query, char **engines, int n)
 {
 	int i = 0;
         int ret = -1;
 
 	for (i = 0; i < n; i++) {
-                if ((strstr(query, engines[i])) != NULL) {
+                if ((match_string(engines[i], query)) != NULL) {
 			return i;
 		}
 	}
@@ -136,15 +144,13 @@ int main(void)
 		eng_switch = -1;
 		scanf("%d", &total_engines);
 		engines = malloc(total_engines * sizeof(char *));
-		bitmap_ptr = (void *) malloc(total_engines * sizeof(char));
-		query_str = malloc(sizeof(ENG_NAME_SZ));
 		if (setup_bitmap(total_engines)) {
 			printf("Failed tp setup bitmap.\nAborting.\n");
 			goto out;
 		}
 		getchar();
 		for (j = 0; j < total_engines; j++) {
-			engines[j] = malloc(sizeof(ENG_NAME_SZ));
+			engines[j] = malloc(ENG_NAME_SZ * sizeof(char));
 			if (engines[j] == NULL) {
 				printf("Failed to allocate memory for engine"
 						" no %d. Aborting\n", j);
@@ -157,16 +163,19 @@ int main(void)
 						" %d.\n Aborting", j);
 				goto out;
 			}
+			engines[j] = strtok(engines[j], "\n");
 		}
 		scanf("%d", &total_queries);
 		getchar();
 		for (j = 0; j < total_queries; j++) {
-			memset(query_str, '\0', sizeof(ENG_NAME_SZ));
+			query_str = malloc(ENG_NAME_SZ * sizeof(char));
+			memset(query_str, '\0', ENG_NAME_SZ * sizeof(char));
 			if (fgets(query_str, ENG_NAME_SZ, stdin) == NULL) {
 				printf("The fgets() failed to get query no"
 						" %d.\n Aborting.", j);
 				goto out;
 			}
+			query_str = strtok(query_str, "\n");
 			eng_switch = check_query(query_str, engines,
 					total_engines);
 			if (eng_switch != -1) {
@@ -182,6 +191,14 @@ int main(void)
 				eng_switch = -1;
 				count = 1;
 			}
+			if (query_str)
+				free(query_str);
+		}
+		if (bitmap_ptr)
+			free(bitmap_ptr);
+		for (j = 0; j < total_engines; j++) {
+			if (engines[j])
+				free(engines[j]);
 		}
 	}
 
