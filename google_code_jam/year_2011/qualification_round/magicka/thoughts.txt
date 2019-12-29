@@ -1,0 +1,7 @@
+
+[*] Check in opposite list if any pair is registered with list[i].
+[*] If yes, how many opposites are there? Make the list.
+[*] If not, insert list[i] in result.
+[*] Pass that list to AVL search.
+[*] If any found in AVL, discard the result array. Start from first position. Clean whole AVL tree.
+[*] If not found in AVL, insert this one in AVL.
